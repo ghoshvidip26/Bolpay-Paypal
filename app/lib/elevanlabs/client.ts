@@ -14,3 +14,18 @@ export const useSpeechToTxt = async () => {
     })
     console.log(transcription)
 }
+
+/** Transcribes a short recorded clip (used by the voice command interface). */
+export async function transcribeAudio(audio: Blob): Promise<string> {
+    const result = await client.speechToText.convert({
+        file: audio,
+        modelId: "scribe_v2",
+        tagAudioEvents: false,
+        diarize: false,
+        // languageCode omitted so the model auto-detects the spoken language.
+    })
+    const r = result as { text?: string; transcripts?: { text: string }[] }
+    if (r.transcripts) return r.transcripts.map((t) => t.text).join(" ")
+    if (typeof r.text === "string") return r.text
+    throw new Error("Unexpected transcription response (webhook mode?)")
+}
