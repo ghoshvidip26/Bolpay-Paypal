@@ -5,7 +5,7 @@ import { VoiceAssistant } from "./VoiceAssistant";
 import { StoreProvider, useStore } from "@/app/lib/merchant/store";
 
 function Frame({ children }: { children: React.ReactNode }) {
-  const { payouts } = useStore();
+  const { payouts, loaded, error, dismissError } = useStore();
   const pending = payouts.filter((p) => p.status === "pending").length;
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 md:grid md:grid-cols-[240px_1fr]">
@@ -16,7 +16,17 @@ function Frame({ children }: { children: React.ReactNode }) {
         </div>
         <Sidebar pendingCount={pending} />
       </aside>
-      <main className="mx-auto w-full max-w-6xl px-4 py-6 pb-28 md:px-8 md:py-8">{children}</main>
+      <main className="mx-auto w-full max-w-6xl px-4 py-6 pb-28 md:px-8 md:py-8">
+        {error && (
+          <div role="alert" className="mb-4 flex items-start justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <span>{error}</span>
+            <button onClick={dismissError} className="font-medium underline">Dismiss</button>
+          </div>
+        )}
+        {!loaded && <p role="status" className="py-20 text-center text-sm text-slate-500">Loading your workspace…</p>}
+        {/* Always rendered (so Next can validate the page) but hidden until data arrives, to avoid a flash of empty state. */}
+        <div hidden={!loaded}>{children}</div>
+      </main>
       <VoiceAssistant />
     </div>
   );

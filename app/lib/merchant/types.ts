@@ -81,4 +81,8 @@ export interface Transaction {
   createdAt: string; // ISO
   reference: string;
   failureReason?: string;
+  /** PayPal payout batch this transaction was submitted in (absent until submitted). */
+  batchId?: string;
+  /** How many times this payout has been submitted (retries increment it). */
+  attempt?: number;
 }

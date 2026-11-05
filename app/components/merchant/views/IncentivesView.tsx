@@ -41,9 +41,9 @@ export function IncentivesView() {
         title="Incentives & payout summary"
         description={`Calculated live from attendance for ${period.label}.`}
         actions={
-          <Button variant="primary" disabled={toSubmit === 0} onClick={() => {
-            const n = submitPeriodForApproval();
-            setNotice(`${n} payout${n === 1 ? "" : "s"} submitted for approval.`);
+          <Button variant="primary" disabled={toSubmit === 0} onClick={async () => {
+            const n = await submitPeriodForApproval();
+            if (n > 0) setNotice(`${n} payout${n === 1 ? "" : "s"} submitted for approval.`);
           }}>
             Submit {toSubmit} for approval
           </Button>

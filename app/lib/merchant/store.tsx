@@ -1,24 +1,18 @@
 "use client";
 
 /**
- * Client-side store for the merchant app. It is seeded with mock data and is
- * the single seam to replace with real API calls once the backend exists:
- * each action below maps to one endpoint.
+ * Client store for the merchant app. The server owns the data and all pay/approval logic;
+ * this store mirrors the latest server snapshot and calls the /api routes.
+ *  - High-frequency edits (attendance, rules, worker edits) are applied optimistically and
+ *    written to the server in order.
+ *  - Everything that creates or moves money waits for the server's snapshot.
  */
-import { createContext, useContext, useEffect, useMemo, useReducer, useRef } from "react";
-import { calculatePay, DEFAULT_RULES } from "./incentives";
-import { CURRENT_PERIOD, SEED_ATTENDANCE, SEED_PAYOUTS, SEED_TRANSACTIONS, SEED_WORKERS, TODAY } from "./mock-data";
-import type {
-  AttendanceRecord,
-  AttendanceStatus,
-  IncentiveRules,
-  Payout,
-  Period,
-  Transaction,
-  Worker,
-} from "./types";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from "react";
+import { calculatePay } from "./incentives";
+import { CURRENT_PERIOD, TODAY } from "./mock-data";
+import type { AttendanceRecord, AttendanceStatus, IncentiveRules, Payout, Period, Transaction, Worker } from "./types";
 
-interface State {
+export interface Snapshot {
   today: string;
   period: Period;
   workers: Worker[];
@@ -29,189 +23,167 @@ interface State {
 }
 
 type Action =
-  | { type: "addWorker"; worker: Worker }
+  | { type: "replace"; snapshot: Snapshot }
   | { type: "updateWorker"; id: string; patch: Partial<Worker> }
   | { type: "setAttendance"; workerId: string; date: string; patch: Partial<AttendanceRecord> }
-  | { type: "setRules"; rules: IncentiveRules }
-  | { type: "submitPayouts"; payouts: Payout[] }
-  | { type: "decidePayouts"; ids: string[]; decision: "approved" | "rejected"; now: string; transactions: Transaction[] }
-  | { type: "settleTransaction"; id: string; status: "completed" | "failed"; failureReason?: string }
-  | { type: "retryTransaction"; id: string };
+  | { type: "setRules"; rules: IncentiveRules };
 
-const initial: State = {
+const EMPTY: Snapshot = {
   today: TODAY,
   period: CURRENT_PERIOD,
-  workers: SEED_WORKERS,
-  attendance: SEED_ATTENDANCE,
-  rules: DEFAULT_RULES,
-  payouts: SEED_PAYOUTS,
-  transactions: SEED_TRANSACTIONS,
+  workers: [],
+  attendance: [],
+  rules: { workingHoursPerDay: 8, overtimeMultiplier: 1.5, dailyUnitTarget: 0, ratePerExtraUnit: 0, attendanceThreshold: 1, attendanceBonus: 0 },
+  payouts: [],
+  transactions: [],
 };
 
-function reducer(state: State, action: Action): State {
+function reducer(state: Snapshot, action: Action): Snapshot {
   switch (action.type) {
-    case "addWorker":
-      return { ...state, workers: [...state.workers, action.worker] };
+    case "replace":
+      return action.snapshot;
     case "updateWorker":
-      return {
-        ...state,
-        workers: state.workers.map((w) => (w.id === action.id ? { ...w, ...action.patch } : w)),
-      };
+      return { ...state, workers: state.workers.map((w) => (w.id === action.id ? { ...w, ...action.patch } : w)) };
     case "setAttendance": {
       const exists = state.attendance.some((r) => r.workerId === action.workerId && r.date === action.date);
       const attendance = exists
-        ? state.attendance.map((r) =>
-            r.workerId === action.workerId && r.date === action.date ? { ...r, ...action.patch } : r,
-          )
-        : [
-            ...state.attendance,
-            { workerId: action.workerId, date: action.date, status: "present" as const, overtimeHours: 0, units: 0, ...action.patch },
-          ];
+        ? state.attendance.map((r) => (r.workerId === action.workerId && r.date === action.date ? { ...r, ...action.patch } : r))
+        : [...state.attendance, { workerId: action.workerId, date: action.date, status: "present" as const, overtimeHours: 0, units: 0, ...action.patch }];
       return { ...state, attendance };
     }
     case "setRules":
       return { ...state, rules: action.rules };
-    case "submitPayouts":
-      return { ...state, payouts: [...state.payouts, ...action.payouts] };
-    case "decidePayouts":
-      return {
-        ...state,
-        payouts: state.payouts.map((p) =>
-          action.ids.includes(p.id) && p.status === "pending" ? { ...p, status: action.decision, decidedAt: action.now } : p,
-        ),
-        transactions: [...state.transactions, ...action.transactions],
-      };
-    case "settleTransaction":
-      return {
-        ...state,
-        transactions: state.transactions.map((t) =>
-          t.id === action.id ? { ...t, status: action.status, failureReason: action.failureReason } : t,
-        ),
-      };
-    case "retryTransaction":
-      return {
-        ...state,
-        transactions: state.transactions.map((t) =>
-          t.id === action.id ? { ...t, status: "processing", failureReason: undefined } : t,
-        ),
-      };
   }
 }
 
-interface Store extends State {
-  addWorker: (w: Omit<Worker, "id" | "joinedOn" | "status">) => void;
+interface Store extends Snapshot {
+  loaded: boolean;
+  error: string | null;
+  dismissError: () => void;
+  addWorker: (w: { name: string; role: string; phone: string; payoutEmail: string; dailyWage: number }) => Promise<void>;
   updateWorker: (id: string, patch: Partial<Worker>) => void;
   setAttendance: (workerId: string, date: string, patch: Partial<AttendanceRecord>) => void;
   markStatus: (workerId: string, date: string, status: AttendanceStatus) => void;
   setRules: (rules: IncentiveRules) => void;
-  submitPeriodForApproval: () => number;
-  approvePayouts: (ids: string[]) => void;
-  rejectPayouts: (ids: string[]) => void;
-  retryTransaction: (id: string) => void;
+  submitPeriodForApproval: () => Promise<number>;
+  approvePayouts: (ids: string[]) => Promise<void>;
+  rejectPayouts: (ids: string[]) => Promise<void>;
+  retryTransaction: (id: string) => Promise<void>;
   workerById: (id: string) => Worker | undefined;
 }
 
 const StoreContext = createContext<Store | null>(null);
+const POLL_MS = 4000;
 
-const SETTLE_DELAY_MS = 2500;
+type ApiResult = { state?: Snapshot; error?: string; created?: number };
+
+async function request(method: string, path: string, body?: unknown): Promise<ApiResult & { ok: boolean }> {
+  try {
+    const res = await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+    const data = (await res.json().catch(() => ({}))) as ApiResult;
+    return { ...data, ok: res.ok };
+  } catch {
+    return { ok: false, error: "Could not reach the server" };
+  }
+}
 
 export function StoreProvider({ children }: { children: React.ReactNode }) {
-  const [state, dispatch] = useReducer(reducer, initial);
-  const stateRef = useRef(state);
-  useEffect(() => {
-    stateRef.current = state;
-  }, [state]);
+  const [state, dispatch] = useReducer(reducer, EMPTY);
+  const [loaded, setLoaded] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-  // Simulates the payment rail: anything "processing" settles shortly after.
-  // Replace with polling / webhooks from the backend later.
-  const timers = useRef(new Map<string, ReturnType<typeof setTimeout>>());
-  useEffect(() => {
-    for (const t of state.transactions) {
-      if (t.status !== "processing" || timers.current.has(t.id)) continue;
-      const handle = setTimeout(() => {
-        timers.current.delete(t.id);
-        const worker = stateRef.current.workers.find((w) => w.id === t.workerId);
-        if (!worker?.payoutEmail) {
-          dispatch({ type: "settleTransaction", id: t.id, status: "failed", failureReason: "Worker has no PayPal account on file" });
-        } else {
-          dispatch({ type: "settleTransaction", id: t.id, status: "completed" });
-        }
-      }, SETTLE_DELAY_MS);
-      timers.current.set(t.id, handle);
-    }
-  }, [state.transactions]);
-  useEffect(() => {
-    const map = timers.current;
-    return () => map.forEach(clearTimeout);
+  /** Applies a server response; returns whether it succeeded. */
+  const apply = useCallback((r: ApiResult & { ok: boolean }) => {
+    if (r.state) dispatch({ type: "replace", snapshot: r.state });
+    if (!r.ok) setError(r.error ?? "Something went wrong");
+    return r.ok;
   }, []);
 
-  const store = useMemo<Store>(() => {
-    const decide = (ids: string[], decision: "approved" | "rejected") => {
-      const now = new Date().toISOString();
-      const pending = stateRef.current.payouts.filter((p) => ids.includes(p.id) && p.status === "pending");
-      const transactions: Transaction[] =
-        decision === "approved"
-          ? pending.map((p) => ({
-              id: `tx-${p.id}-${now}`,
-              payoutId: p.id,
-              workerId: p.workerId,
-              periodLabel: p.periodLabel,
-              amount: p.amount,
-              status: "processing",
-              createdAt: now,
-              reference: `PP-${Math.floor(10000 + Math.random() * 89999)}`,
-            }))
-          : [];
-      dispatch({ type: "decidePayouts", ids, decision, now, transactions });
-    };
+  const refresh = useCallback(async () => {
+    const r = await request("GET", "/api/state");
+    apply(r);
+    if (r.ok) setLoaded(true);
+  }, [apply]);
 
+  useEffect(() => {
+    let cancelled = false;
+    void request("GET", "/api/state").then((r) => {
+      if (cancelled) return;
+      apply(r);
+      if (r.ok) setLoaded(true);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [apply]);
+
+  // Optimistic writes go through one queue so they reach the server in the order they were made.
+  const queue = useRef<Promise<unknown>>(Promise.resolve());
+  const enqueue = useCallback(
+    (method: string, path: string, body: unknown) => {
+      queue.current = queue.current.then(async () => {
+        const r = await request(method, path, body);
+        if (!r.ok) {
+          setError(r.error ?? "Could not save your change");
+          await refresh(); // roll the optimistic edit back to the server's truth
+        }
+      });
+    },
+    [refresh],
+  );
+
+  // While any payment is in flight, ask the server to re-check PayPal.
+  const hasProcessing = state.transactions.some((t) => t.status === "processing");
+  useEffect(() => {
+    if (!hasProcessing) return;
+    const handle = setInterval(async () => {
+      const r = await request("POST", "/api/payouts/sync");
+      if (r.state) dispatch({ type: "replace", snapshot: r.state });
+    }, POLL_MS);
+    return () => clearInterval(handle);
+  }, [hasProcessing]);
+
+  const store = useMemo<Store>(() => {
+    const act = async (method: string, path: string, body?: unknown) => apply(await request(method, path, body));
     return {
       ...state,
-      addWorker: (w) =>
-        dispatch({
-          type: "addWorker",
-          worker: { ...w, id: `w${Date.now()}`, joinedOn: stateRef.current.today, status: "active" },
-        }),
-      updateWorker: (id, patch) => dispatch({ type: "updateWorker", id, patch }),
-      setAttendance: (workerId, date, patch) => dispatch({ type: "setAttendance", workerId, date, patch }),
-      markStatus: (workerId, date, status) =>
-        dispatch({
-          type: "setAttendance",
-          workerId,
-          date,
-          patch: status === "absent" || status === "leave" ? { status, overtimeHours: 0, units: 0 } : { status },
-        }),
-      setRules: (rules) => dispatch({ type: "setRules", rules }),
-      submitPeriodForApproval: () => {
-        const s = stateRef.current;
-        const already = new Set(s.payouts.filter((p) => p.periodId === s.period.id).map((p) => p.workerId));
-        const records = s.attendance.filter((r) => r.date >= s.period.start && r.date <= s.period.end);
-        const now = new Date().toISOString();
-        const payouts = s.workers
-          .filter((w) => w.status === "active" && !already.has(w.id))
-          .map((w): Payout => {
-            const breakdown = calculatePay(w, records, s.rules);
-            return {
-              id: `po-${s.period.id}-${w.id}`,
-              workerId: w.id,
-              periodId: s.period.id,
-              periodLabel: s.period.label,
-              breakdown,
-              amount: breakdown.total,
-              status: "pending",
-              submittedAt: now,
-            };
-          })
-          .filter((p) => p.amount > 0);
-        if (payouts.length) dispatch({ type: "submitPayouts", payouts });
-        return payouts.length;
+      loaded,
+      error,
+      dismissError: () => setError(null),
+      addWorker: async (w) => void (await act("POST", "/api/workers", w)),
+      updateWorker: (id, patch) => {
+        dispatch({ type: "updateWorker", id, patch });
+        enqueue("PATCH", `/api/workers/${encodeURIComponent(id)}`, patch);
       },
-      approvePayouts: (ids) => decide(ids, "approved"),
-      rejectPayouts: (ids) => decide(ids, "rejected"),
-      retryTransaction: (id) => dispatch({ type: "retryTransaction", id }),
+      setAttendance: (workerId, date, patch) => {
+        dispatch({ type: "setAttendance", workerId, date, patch });
+        enqueue("PUT", "/api/attendance", { workerId, date, patch });
+      },
+      markStatus: (workerId, date, status) => {
+        const patch = status === "absent" || status === "leave" ? { status, overtimeHours: 0, units: 0 } : { status };
+        dispatch({ type: "setAttendance", workerId, date, patch });
+        enqueue("PUT", "/api/attendance", { workerId, date, patch });
+      },
+      setRules: (rules) => {
+        dispatch({ type: "setRules", rules });
+        enqueue("PUT", "/api/rules", rules);
+      },
+      submitPeriodForApproval: async () => {
+        // Make sure queued attendance edits are saved before the server computes pay.
+        await queue.current;
+        const r = await request("POST", "/api/payouts/submit-period");
+        return apply(r) ? (r.created ?? 0) : 0;
+      },
+      approvePayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "approved" })),
+      rejectPayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "rejected" })),
+      retryTransaction: async (id) => void (await act("POST", `/api/transactions/${encodeURIComponent(id)}/retry`)),
       workerById: (id) => state.workers.find((w) => w.id === id),
     };
-  }, [state]);
+  }, [state, loaded, error, apply, enqueue]);
 
   return <StoreContext.Provider value={store}>{children}</StoreContext.Provider>;
 }
@@ -225,21 +197,15 @@ export function useStore(): Store {
 /** Records within the current pay period. */
 export function usePeriodRecords() {
   const { attendance, period } = useStore();
-  return useMemo(
-    () => attendance.filter((r) => r.date >= period.start && r.date <= period.end),
-    [attendance, period],
-  );
+  return useMemo(() => attendance.filter((r) => r.date >= period.start && r.date <= period.end), [attendance, period]);
 }
 
-/** Live pay breakdown for every active worker in the current period. */
+/** Live pay preview for every active worker (the server recomputes this when payouts are submitted). */
 export function usePeriodPay() {
   const { workers, rules } = useStore();
   const records = usePeriodRecords();
   return useMemo(
-    () =>
-      workers
-        .filter((w) => w.status === "active")
-        .map((w) => ({ worker: w, pay: calculatePay(w, records, rules) })),
+    () => workers.filter((w) => w.status === "active").map((w) => ({ worker: w, pay: calculatePay(w, records, rules) })),
     [workers, rules, records],
   );
 }

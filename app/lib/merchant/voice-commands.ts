@@ -1,13 +1,10 @@
+import type { IntentPlan } from "./intent-types";
 import type { AttendanceStatus, Worker } from "./types";
 
-export type VoiceIntent =
-  | { kind: "mark"; worker: Worker; status: AttendanceStatus }
-  | { kind: "overtime"; worker: Worker; hours: number }
-  | { kind: "units"; worker: Worker; units: number }
-  | { kind: "approve"; worker: Worker | null } // null = all pending
-  | { kind: "reject"; worker: Worker | null }
-  | { kind: "navigate"; to: string; label: string }
-  | { kind: "unknown"; reason: string };
+/**
+ * Offline fallback parser (English only, keyword based). The assistant uses /api/intent first and
+ * only falls back to this when the AI service is unavailable.
+ */
 
 const NUMBER_WORDS: Record<string, number> = {
   zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10,
@@ -45,21 +42,20 @@ const PAGES: { match: RegExp; to: string; label: string }[] = [
   { match: /\bpayouts?|approvals?\b/, to: "/payouts", label: "Payouts" },
 ];
 
-/** Turns a free-form transcript into a structured intent. English only for now. */
-export function parseVoiceCommand(raw: string, workers: Worker[]): VoiceIntent {
+export function parseVoiceCommand(raw: string, workers: Worker[], today: string): IntentPlan {
   const text = raw.toLowerCase().replace(/[.,!?]/g, " ").replace(/\s+/g, " ").trim();
   if (!text) return { kind: "unknown", reason: "I didn't catch anything." };
 
   const worker = findWorker(text, workers);
 
   if (/\b(approve|accept)\b/.test(text)) {
-    if (/\ball\b|\beveryone\b|\bevery\b/.test(text)) return { kind: "approve", worker: null };
-    if (worker) return { kind: "approve", worker };
+    if (/\ball\b|\beveryone\b|\bevery\b/.test(text)) return { kind: "approve", workerId: null, workerName: null };
+    if (worker) return { kind: "approve", workerId: worker.id, workerName: worker.name };
     return { kind: "unknown", reason: "Who should I approve? Say a worker's name or “approve all”." };
   }
   if (/\b(reject|decline|deny)\b/.test(text)) {
-    if (/\ball\b|\beveryone\b/.test(text)) return { kind: "reject", worker: null };
-    if (worker) return { kind: "reject", worker };
+    if (/\ball\b|\beveryone\b/.test(text)) return { kind: "reject", workerId: null, workerName: null };
+    if (worker) return { kind: "reject", workerId: worker.id, workerName: worker.name };
     return { kind: "unknown", reason: "Who should I reject? Say a worker's name or “reject all”." };
   }
 
@@ -67,14 +63,14 @@ export function parseVoiceCommand(raw: string, workers: Worker[]): VoiceIntent {
     const hours = findNumber(text);
     if (!worker) return { kind: "unknown", reason: "Which worker did the overtime?" };
     if (hours === null) return { kind: "unknown", reason: `How many overtime hours for ${worker.name}?` };
-    return { kind: "overtime", worker, hours };
+    return { kind: "overtime", workerId: worker.id, workerName: worker.name, hours, date: today };
   }
 
   if (/\b(units?|orders?|tasks?|items?)\b/.test(text) && /\b(completed?|did|finished|packed|delivered|sold)\b/.test(text)) {
     const units = findNumber(text.replace(worker?.name.toLowerCase() ?? "", ""));
     if (!worker) return { kind: "unknown", reason: "Which worker completed those?" };
     if (units === null) return { kind: "unknown", reason: `How many units did ${worker.name} complete?` };
-    return { kind: "units", worker, units };
+    return { kind: "units", workerId: worker.id, workerName: worker.name, units, date: today };
   }
 
   const status: AttendanceStatus | null = /\bhalf[- ]?day\b|\bhalf\b/.test(text)
@@ -88,7 +84,7 @@ export function parseVoiceCommand(raw: string, workers: Worker[]): VoiceIntent {
           : null;
   if (status) {
     if (!worker) return { kind: "unknown", reason: "Which worker? Try “mark Ravi present”." };
-    return { kind: "mark", worker, status };
+    return { kind: "mark", workerId: worker.id, workerName: worker.name, status, date: today };
   }
 
   if (/\b(go to|open|show|take me to|navigate)\b/.test(text)) {
@@ -102,21 +98,30 @@ export function parseVoiceCommand(raw: string, workers: Worker[]): VoiceIntent {
   };
 }
 
-export function describeIntent(i: VoiceIntent, today: string): string {
-  switch (i.kind) {
+export function describePlan(p: IntentPlan): string {
+  switch (p.kind) {
     case "mark":
-      return `Mark ${i.worker.name} as ${i.status === "half" ? "half day" : i.status} on ${today}`;
+      return `Mark ${p.workerName} as ${p.status === "half" ? "half day" : p.status} on ${p.date}`;
     case "overtime":
-      return `Record ${i.hours}h overtime for ${i.worker.name} on ${today}`;
+      return `Record ${p.hours}h overtime for ${p.workerName} on ${p.date}`;
     case "units":
-      return `Record ${i.units} units completed by ${i.worker.name} on ${today}`;
+      return `Record ${p.units} units completed by ${p.workerName} on ${p.date}`;
     case "approve":
-      return i.worker ? `Approve ${i.worker.name}'s pending payout` : "Approve all pending payouts";
+      return p.workerName ? `Approve ${p.workerName}'s pending payout` : "Approve all pending payouts";
     case "reject":
-      return i.worker ? `Reject ${i.worker.name}'s pending payout` : "Reject all pending payouts";
+      return p.workerName ? `Reject ${p.workerName}'s pending payout` : "Reject all pending payouts";
+    case "prepare":
+      return "Calculate this period's incentives and queue payouts for approval";
     case "navigate":
-      return `Open ${i.label}`;
+      return `Open ${p.label}`;
+    case "answer":
+      return p.text;
+    case "clarify":
+      return p.question;
     case "unknown":
-      return i.reason;
+      return p.reason;
   }
 }
+
+/** Plans that only show text and have nothing to confirm. */
+export const isInformational = (p: IntentPlan) => p.kind === "answer" || p.kind === "clarify" || p.kind === "unknown";

@@ -29,3 +29,16 @@ export async function transcribeAudio(audio: Blob): Promise<string> {
     if (typeof r.text === "string") return r.text
     throw new Error("Unexpected transcription response (webhook mode?)")
 }
+
+
+const TTS_VOICE_ID = process.env.ELEVEN_LABS_VOICE_ID || "JBFqnCBsd6RMkjVDRZzb"
+const TTS_MODEL_ID = process.env.ELEVEN_LABS_TTS_MODEL || "eleven_multilingual_v2"
+
+/** Speaks a short reply. Returns an MP3 byte stream. The model auto-detects the language of the text. */
+export async function synthesizeSpeech(text: string): Promise<ReadableStream<Uint8Array>> {
+    return client.textToSpeech.convert(TTS_VOICE_ID, {
+        text,
+        modelId: TTS_MODEL_ID,
+        outputFormat: "mp3_44100_64",
+    })
+}
