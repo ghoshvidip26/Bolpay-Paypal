@@ -186,6 +186,8 @@ export interface PrepareFilter {
   minUnits?: number | null;
   /** Defaults to today. */
   date?: string | null;
+  /** Restrict to exactly these workers (used by the voice assistant after it resolves names). */
+  workerIds?: string[] | null;
 }
 
 const normCity = (c: string) => c.normalize("NFKC").toLowerCase().trim();
@@ -226,6 +228,10 @@ export function submitPeriod(filter: PrepareFilter = {}): { created: number; nee
   let skipped = 0;
   for (const w of db.workers) {
     if (w.status !== "active" || done.has(w.id)) continue;
+    if (filter.workerIds && !filter.workerIds.includes(w.id)) {
+      skipped++;
+      continue;
+    }
     if (filter.city && normCity(w.city) !== normCity(filter.city)) {
       skipped++;
       continue;
@@ -315,12 +321,18 @@ function fail(tx: Transaction, reason: string) {
   if (tx.reference === "Submitting…") tx.reference = "—";
 }
 
+/** Currency PayPal is paid in and the rate from the stored INR amounts (1 when paying in INR). */
+export function settlement() {
+  const currency = process.env.PAYOUT_CURRENCY || "USD";
+  const rate = currency === "INR" ? 1 : Number(process.env.INR_PER_USD) || DEFAULT_INR_PER_USD;
+  return { currency, rate };
+}
+
 /** Sends the given transactions to PayPal using only amounts and emails stored on the server. */
 async function submitToPayPal(txIds: string[]) {
   const db = getDb();
-  const currency = process.env.PAYOUT_CURRENCY || "USD";
   // Amounts are stored in INR; PayPal settles in `currency` at this rate (1 when paying in INR).
-  const rate = currency === "INR" ? 1 : Number(process.env.INR_PER_USD) || DEFAULT_INR_PER_USD;
+  const { currency, rate } = settlement();
   const txs = db.transactions.filter((t) => txIds.includes(t.id));
 
   if (isLivePayPal && process.env.ALLOW_LIVE_PAYOUTS !== "true") {
