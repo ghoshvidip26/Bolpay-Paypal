@@ -1,0 +1,162 @@
+# BolPay AI — Product Requirements Document
+
+**Tagline:** Speak. Approve. Pay.
+**Category:** AI-powered workforce incentive and payout automation
+**Users:** logistics companies, delivery businesses, gig-work platforms, workforce managers
+**Hackathon:** PayPal AI Hackathon 2026 (Devpost)
+
+> Status of the build against this PRD: [BUILT.md](./BUILT.md). Open work: [REMAINING.md](./REMAINING.md).
+
+## 0. Hackathon constraints
+
+Source: the official Devpost overview page (pasted by the team). The separate Rules page was not read, so check it before submitting.
+
+- **Deadline:** 13 Nov 2026, 1:30 AM IST (12 Nov, 12:00 PM Pacific).
+- **Core requirement:** the project must meaningfully use both PayPal (free sandbox) and AI, with PayPal integration central. There are no tracks or prescribed problems. New or existing projects are allowed if meaningful progress is made during the hackathon.
+- **Prizes ($67,500+ cash):** 1st $12k, 2nd $8k, 3rd $5k. Special $5k awards: Most Creative, Most Impactful, Best Demo Delivery, Best Use of PayPal + AI, Best Use of Agentic Commerce. Sponsor prizes: AG Grid (1st $5k, 2nd $2k, 3rd $1k), APIMatic ($1k plus 6 months of subscription), Bryntum ($1k), Channel3 ($1.5k), Render (credits, $1,000 / $750 / $500).
+- **Judging criteria:** Technological Implementation, Design (a complete, coherent product, not only a proof of concept), Potential Impact (a credible, specific real problem and audience), Innovation/Idea, Presentation (the video shows it working end to end and the pitch explains the problem, audience and why it matters). No weightings are published.
+
+### Submission checklist (mandatory)
+1. Working project that meaningfully integrates PayPal and AI.
+2. Text description of features and functionality.
+3. **Functional demo**: either clear setup and run instructions in the repo, or a hosted demo URL. A mockup or non-functional demo does not count.
+4. Tools list: which models or AI services were used and how.
+5. **Public repo** (GitHub, GitLab or Bitbucket) containing all source, assets and run instructions, **open source with a visible LICENSE file**.
+6. **Demo video**: under 3 minutes, shows the project working on the device it was built for, public on YouTube, no third-party trademarks or copyrighted music.
+
+### Sponsor angles (optional)
+- **Render:** hosting for a hosted demo URL, and a Render prize. Needs the JSON DB replaced by Postgres, since Render's disk is not durable on free tiers.
+- **AG Grid:** use it for the workers, attendance and transactions tables. It has three prize slots, so it is a plausible extra prize.
+- **APIMatic:** generates SDK and docs from an OpenAPI spec of our API. Cheap to add.
+- **Agentic Commerce** (special award): frame BolPay's voice agent as an AI agent that prepares and executes payments under human approval.
+- Postman, Elastic, Zapier, Bryntum, Channel3, KERNEL and Astropods have no obvious fit. Postman has no listed prize.
+
+Implications:
+- All money movement runs on the PayPal **sandbox**.
+- Judges must be able to run the app, so the README setup steps and a demo mode that works without private keys matter.
+
+## 1. Overview
+
+BolPay AI is a voice-first workforce payout platform. A manager speaks a command in their own language. The system turns it into a structured action and calculates pay with a deterministic rules engine. It presents a transparent payout summary, pays only after explicit human approval, and reports verified payment status back by voice.
+
+Example: "Calculate ₹100 incentives for all riders who completed at least 20 deliveries today. Flag workers with missing attendance."
+
+## 2. Problem
+
+- Attendance, delivery counts and incentives live in separate systems and spreadsheets.
+- Managers calculate bonuses by hand for hundreds of workers.
+- Bulk payouts are slow to prepare and process.
+- Missing or conflicting records lead to wrong payouts.
+- Dashboards are hard to use for managers who work in regional languages.
+
+## 3. Goals and non-goals
+
+**Goals**
+1. Start payout workflows from natural-language voice commands.
+2. Calculate incentives with configurable, versioned business rules.
+3. Flag missing, inconsistent or invalid records.
+4. Show worker-level and batch-level summaries.
+5. Require manager approval or rejection before any money moves.
+6. Pay through the PayPal Payouts API (sandbox).
+7. Report real payout status by voice.
+
+**Non-goals (MVP):** replacing an HRMS or payroll system, setting salaries or ratings, GPS or attendance tracking, supporting other payment providers, paying without approval.
+
+## 4. Personas
+
+- **Operations manager (primary):** sets rules, reviews records, prepares and approves batches, monitors status.
+- **Finance/admin:** verifies calculations and recipients, handles failed and pending payouts.
+- **Worker:** receives payouts; views breakdown and status (nice-to-have).
+
+## 5. Functional requirements
+
+### 5.1 Auth and roles
+- Manager login (demo authentication is acceptable for the hackathon).
+- Manager and admin roles. Only authorised roles can approve, reject, retry or sync payouts.
+- Workers, payouts and transactions scoped to a business.
+
+### 5.2 Workforce management
+- Add, edit and deactivate workers: name, ID, city, role, phone, PayPal payout email, daily wage, status.
+- View attendance, delivery counts and payout history.
+- Filter the workers table (city, status).
+- Synthetic dataset: ~25 Bengaluru delivery riders with realistic variety, including missing attendance, a missing payout email and conflicting records.
+
+### 5.3 Voice interface (ElevenLabs)
+- Capture audio in the dashboard; transcribe with ElevenLabs Scribe.
+- Languages: English, Hindi, Kannada, Tamil, Bengali, including code-mixed speech, subject to testing.
+- Read replies aloud with ElevenLabs TTS, in the language the manager spoke.
+- Ask a clarifying question when information is missing or ambiguous.
+- Example commands: "Show today's delivery incentives." / "Prepare payouts for all eligible Bengaluru riders." / "Show workers with missing attendance." / "How many payouts failed?"
+
+### 5.4 AI intent processing
+- An LLM converts the transcript into a strict-schema action, for example `{intent, city, date, conditions}`.
+- Every output is validated and resolved against real records server-side before anything runs.
+- **The LLM never calculates amounts or invents records.** The rules engine is the source of truth.
+- Supported intents: mark attendance, record overtime/units, prepare incentives (with city and minimum-deliveries filters), approve/reject payouts, payout status, navigate, clarify.
+
+### 5.5 Incentive engine
+- Deterministic and server-side. Inputs: attendance, deliveries, wage, rules.
+- Rule types: wage, overtime, per-unit incentive, attendance bonus and **tiered delivery incentives** (e.g. 10 / 20 / 30 deliveries → ₹50 / ₹100 / ₹150).
+- Detect missing or conflicting records and mark the worker **Needs Review** instead of guessing.
+- Store the **rule version** used for every calculation.
+- Currency: ₹ for the demo scenario. PayPal sandbox payout currency and recipient-country support must be confirmed; if INR is not supported, display ₹ and settle in a supported currency using a documented conversion (see Risks).
+
+### 5.6 Payout batch and approval
+- Show eligible worker count, total, per-worker amounts, workers needing review, invalid recipients and the rule applied.
+- Approve or reject the batch, or individual payouts. No payment before explicit approval.
+
+### 5.7 PayPal payments
+After approval the backend validates the batch and recipients, then submits eligible payouts with `POST /v1/payments/payouts`, using an idempotent `sender_batch_id`. It stores provider IDs and responses and updates status from signature-verified webhooks (`PAYMENT.PAYOUTS-ITEM.*`), with polling as a fallback.
+
+Statuses: Draft, Pending Approval, Approved, Processing, Completed, Failed, Needs Review.
+
+Requirements: duplicate-payout prevention, transaction records, retry of failed payouts, webhook signature verification, and reconciliation of provider status against internal records.
+
+### 5.8 Voice status updates
+"What's the payout status?" / "Who has a pending payment?" are answered from stored provider-confirmed statuses (not from API-submission success) and spoken via TTS. Recipient details are never read aloud.
+
+## 6. End-to-end flow
+
+Manager logs in → opens the voice assistant → speaks → Scribe transcribes → LLM extracts the intent → backend validates and resolves records → rules engine calculates → discrepancies are flagged → dashboard shows the proposed batch → manager approves → backend submits to PayPal → webhooks and sync update status → TTS summarises the outcome.
+
+## 7. Architecture
+
+Next.js (App Router, TypeScript, Tailwind) frontend and route-handler backend. Business logic is in `app/lib/server/service.ts`, and the API routes are thin wrappers around it. Integrations: ElevenLabs (STT and TTS), Groq LLM (intent extraction and reply translation), PayPal (SDK for Orders/Checkout, raw REST for Payouts and webhook verification).
+
+Original plan: Express + PostgreSQL + Prisma. Current implementation: a file-backed JSON store behind a single service layer. Decision for the team: either move to Postgres (Prisma) behind the same service layer, or keep the JSON store for the demo and state the limitation. Next.js route handlers already replace Express, so a separate Express server is not needed.
+
+## 8. Security and reliability
+- Secrets only in environment variables.
+- Role-based authorisation on money-moving endpoints.
+- Validate every AI-generated action. Payout amounts and emails are read from server state, never from the client or the model.
+- Audit log of calculations, approvals and status changes.
+- Idempotent batches and per-transaction tracking.
+- Verify webhook signatures.
+- Live PayPal payouts are blocked unless explicitly enabled.
+
+## 9. MVP scope
+
+**Must-have:** demo auth, synthetic workforce data, attendance and deliveries, voice input via Scribe, LLM intent extraction, deterministic incentives, discrepancy flags, approval workflow, PayPal sandbox payouts with status display, spoken results.
+
+**Nice-to-have:** language switcher, payout history and analytics, worker statements, downloadable reports, richer rules.
+
+## 10. Success criteria
+- A voice command starts a payout workflow and the right filters are extracted.
+- Amounts match the configured rules; missing or conflicting data is flagged.
+- The manager approves a batch and eligible payouts reach the PayPal sandbox.
+- Dashboard and voice report verified statuses, including failed and pending ones.
+
+## 11. Demo script
+25 Bengaluru riders. The manager says: "Calculate ₹100 incentives for all riders who completed at least 20 deliveries today. Flag workers with missing attendance." Show transcription and the extracted intent, the proposed batch with flagged workers, approval, sandbox payouts moving to completed (include one deliberate failure and one pending), and the spoken summary. Keep a pre-recorded fallback in case of live network failure.
+
+## 12. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Sandbox Payouts access or currency (INR) not available | Confirm in the first session; fall back to USD settlement with ₹ display |
+| Recipient accounts invalid | Create sandbox personal accounts and use their emails for workers |
+| Webhook needs a public URL | Use a tunnel or Render; keep the sync action as fallback |
+| Non-English transcription accuracy | Test Hindi, Kannada, Tamil, Bengali and code-mixed speech early |
+| LLM misreads a command | Strict schema, server validation, clarification questions |
+| JSON store loses data or fails on serverless hosts | Move to Postgres, or demo locally |
+| Duplicate payments | Deterministic `sender_batch_id`, per-transaction state |

@@ -1,36 +1,45 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# BolPay AI — Speak. Approve. Pay.
 
-## Getting Started
+A voice-first workforce payout app. A manager speaks a command in their own language, the system turns it into a validated action, a deterministic rules engine calculates pay, and money moves through the **PayPal Payouts API (sandbox)** only after explicit human approval.
 
-First, run the development server:
+Built for the PayPal AI Hackathon 2026.
+
+- Product spec: [docs/PRD.md](docs/PRD.md)
+- What works today: [docs/BUILT.md](docs/BUILT.md)
+- What is left: [docs/REMAINING.md](docs/REMAINING.md)
+
+## How AI is used
+| Tool | Used for |
+|---|---|
+| ElevenLabs Scribe | Speech-to-text for voice commands |
+| Groq LLM (`openai/gpt-oss-120b` by default) | Extracts a strict-schema intent from the transcript and translates replies. It never calculates amounts. |
+| ElevenLabs TTS | Spoken replies and payout status updates |
+
+The server validates every model output and resolves workers and dates itself. The rules engine in `app/lib/merchant/incentives.ts` is the only source of pay amounts.
+
+## Run it
+Requirements: Node 20+, and sandbox credentials for PayPal, ElevenLabs and Groq.
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.example .env     # then fill in the keys (instructions are in the file)
+npm run dev              # http://localhost:3000
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### PayPal sandbox setup
+1. At developer.paypal.com create a **US Business** sandbox account (Testing Tools → Sandbox Accounts). Business accounts from some countries, e.g. India, cannot send payouts.
+2. Create an app for it (Apps & Credentials), keep **Payouts** enabled, and copy the Client ID and Secret into `.env`.
+3. Create US **Personal** sandbox accounts for the workers. The seed data expects `bolpay-worker-1@personal.example.com` … `bolpay-worker-24@personal.example.com`; otherwise edit the PayPal email on the Workers screen.
+4. Amounts are shown in ₹ and settled in USD at `INR_PER_USD` (default 85).
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+### Try the demo flow
+1. **Attendance / Workers:** look at the 25 seeded Bengaluru riders. You can add riders or import CSVs (Workers screen).
+2. **Incentives:** review the tiered rules (10 / 20 / 30 deliveries → ₹50 / ₹100 / ₹150) and submit the period.
+3. **Payouts:** riders with missing or conflicting records are under **Needs review**. Approve a few of the rest; each batch is sent to PayPal.
+4. **Transactions:** statuses refresh automatically (or via sync) from *processing* to *completed*. A rider with no PayPal email fails with a reason and can be retried.
+5. **Voice:** click the microphone and say, e.g. "Calculate incentives for all Bengaluru riders who completed at least 20 deliveries today", then confirm. Ask "how many payments failed?" for a spoken status.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+To reset the data, stop the server and delete the `.data` folder.
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+## Commands
+`npm run dev` · `npm run build` · `npm run start` · `npm run lint`

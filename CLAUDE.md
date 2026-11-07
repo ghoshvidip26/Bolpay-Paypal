@@ -33,3 +33,10 @@ Bolpay ("PayCrew" in some strings) — a hackathon app for merchants to manage h
 ## Environment variables
 
 `NEXT_PUBLIC_PAYPAL_CLIENT_ID`, `PAYPAL_CLIENT_SECRET`, `NEXT_PUBLIC_PAYPAL_ENVIRONMENT`, `PAYPAL_WEBHOOK_ID`, `PAYOUT_CURRENCY` (default USD), `ALLOW_LIVE_PAYOUTS`, `ELEVEN_LABS_API_KEY`, `ELEVEN_LABS_VOICE_ID`, `ELEVEN_LABS_TTS_MODEL`, `GROQ_API_KEY`, `GROQ_MODEL`.
+
+## Things that are easy to get wrong
+- Amounts are stored and shown in **INR**; conversion to USD happens only in `submitToPayPal` (`INR_PER_USD`, default 85). Each transaction keeps `usdAmount` and `fxRate`.
+- `.data/db.json` has a `schemaVersion` (`app/lib/server/db.ts`). Bump `SCHEMA_VERSION` when the data shape changes; older files are reseeded automatically. Seed data is in `app/lib/merchant/mock-data.ts` (25 Bengaluru riders with sandbox PayPal emails).
+- PayPal's India business sandbox accounts can't send payouts; use a US business sandbox app.
+- `submitPeriod` marks workers with missing or conflicting records `needs_review`; `decidePayouts` only acts on `pending`, so those can't be approved.
+- Status docs: `docs/PRD.md`, `docs/BUILT.md`, `docs/REMAINING.md`.
