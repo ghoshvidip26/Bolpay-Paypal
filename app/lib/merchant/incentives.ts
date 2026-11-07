@@ -3,11 +3,26 @@ import type { AttendanceRecord, IncentiveRules, PayBreakdown, Worker } from "./t
 export const DEFAULT_RULES: IncentiveRules = {
   workingHoursPerDay: 8,
   overtimeMultiplier: 1.5,
-  dailyUnitTarget: 20,
-  ratePerExtraUnit: 0.75,
+  dailyUnitTarget: 30,
+  ratePerExtraUnit: 5,
   attendanceThreshold: 0.9,
-  attendanceBonus: 25,
+  attendanceBonus: 250,
+  // 10 / 20 / 30 deliveries in a day -> ₹50 / ₹100 / ₹150
+  deliveryTiers: [
+    { minUnits: 10, bonus: 50 },
+    { minUnits: 20, bonus: 100 },
+    { minUnits: 30, bonus: 150 },
+  ],
+  version: 1,
 };
+
+/** Bonus for one day's deliveries: the highest tier reached (tiers don't stack). */
+export function tierBonusFor(units: number, tiers: IncentiveRules["deliveryTiers"] = []): number {
+  let bonus = 0;
+  let best = -1;
+  for (const t of tiers) if (units >= t.minUnits && t.minUnits > best) { best = t.minUnits; bonus = t.bonus; }
+  return bonus;
+}
 
 const round2 = (n: number) => Math.round(n * 100) / 100;
 
@@ -27,6 +42,7 @@ export function calculatePay(
   let payDays = 0;
   let overtimeHours = 0;
   let extraUnits = 0;
+  let tierBonus = 0;
 
   for (const r of mine) {
     if (r.status === "present") payDays += 1;
@@ -34,6 +50,7 @@ export function calculatePay(
     if (r.status === "present" || r.status === "half") {
       overtimeHours += r.overtimeHours;
       extraUnits += Math.max(0, r.units - rules.dailyUnitTarget);
+      tierBonus += tierBonusFor(r.units, rules.deliveryTiers);
     }
   }
 
@@ -56,7 +73,8 @@ export function calculatePay(
     basePay,
     overtimePay,
     performanceIncentive,
+    tierBonus: round2(tierBonus),
     attendanceBonus,
-    total: round2(basePay + overtimePay + performanceIncentive + attendanceBonus),
+    total: round2(basePay + overtimePay + performanceIncentive + tierBonus + attendanceBonus),
   };
 }

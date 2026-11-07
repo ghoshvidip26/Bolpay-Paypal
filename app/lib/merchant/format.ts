@@ -1,4 +1,4 @@
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 2 });
 export const formatMoney = (n: number) => money.format(n);
 
 export function formatDate(iso: string) {
@@ -41,3 +41,6 @@ export function dateRange(start: string, end: string): string[] {
   }
   return out;
 }
+
+const usd = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
+export const formatUsd = (n: number) => usd.format(n);

@@ -4,6 +4,8 @@ export interface Worker {
   id: string;
   name: string;
   role: string;
+  /** City the worker operates in (used by voice/batch filters). */
+  city: string;
   phone: string;
   /** PayPal account used for payouts. Empty = payouts will fail. */
   payoutEmail: string;
@@ -32,6 +34,15 @@ export interface IncentiveRules {
   /** 0-1, share of period days a worker must be paid-present for. */
   attendanceThreshold: number;
   attendanceBonus: number;
+  /** Daily delivery tiers: on each worked day the highest tier reached is paid once. */
+  deliveryTiers: DeliveryTier[];
+  /** Bumped every time the rules change; stored on each payout for auditability. */
+  version: number;
+}
+
+export interface DeliveryTier {
+  minUnits: number;
+  bonus: number;
 }
 
 export interface PayBreakdown {
@@ -44,6 +55,8 @@ export interface PayBreakdown {
   basePay: number;
   overtimePay: number;
   performanceIncentive: number;
+  /** Sum of daily delivery-tier bonuses. */
+  tierBonus: number;
   attendanceBonus: number;
   total: number;
 }
@@ -55,7 +68,7 @@ export interface Period {
   end: string;
 }
 
-export type PayoutStatus = "pending" | "approved" | "rejected";
+export type PayoutStatus = "pending" | "needs_review" | "approved" | "rejected";
 
 export interface Payout {
   id: string;
@@ -65,6 +78,11 @@ export interface Payout {
   breakdown: PayBreakdown;
   amount: number;
   status: PayoutStatus;
+  /** Rule set used to compute this payout. */
+  ruleVersion?: number;
+  rulesSnapshot?: IncentiveRules;
+  /** Why a payout is flagged Needs Review (missing or conflicting records). */
+  reviewReasons?: string[];
   submittedAt: string; // ISO
   decidedAt?: string;
 }
@@ -76,7 +94,11 @@ export interface Transaction {
   payoutId: string;
   workerId: string;
   periodLabel: string;
+  /** Amount in the app's display currency (INR). */
   amount: number;
+  /** Amount actually sent to PayPal (USD in the sandbox) and the rate used. */
+  usdAmount?: number;
+  fxRate?: number;
   status: TransactionStatus;
   createdAt: string; // ISO
   reference: string;
