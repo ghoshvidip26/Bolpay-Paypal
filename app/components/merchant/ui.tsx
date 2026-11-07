@@ -67,11 +67,11 @@ export function Badge({ tone = "slate", children }: { tone?: keyof typeof BADGE;
 
 const STATUS_TONE: Record<string, keyof typeof BADGE> = {
   present: "green", half: "amber", absent: "red", leave: "blue",
-  pending: "amber", approved: "green", rejected: "red",
+  pending: "amber", approved: "green", rejected: "red", needs_review: "amber",
   processing: "blue", completed: "green", failed: "red",
   active: "green", inactive: "slate",
 };
-const STATUS_LABEL: Record<string, string> = { half: "Half day", leave: "On leave" };
+const STATUS_LABEL: Record<string, string> = { half: "Half day", leave: "On leave", needs_review: "Needs review" };
 
 export function StatusBadge({ status }: { status: string }) {
   return (

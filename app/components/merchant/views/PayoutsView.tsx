@@ -13,7 +13,8 @@ export function PayoutsView() {
   const [confirming, setConfirming] = useState(false);
 
   const pending = payouts.filter((p) => p.status === "pending");
-  const decided = payouts.filter((p) => p.status !== "pending").sort((a, b) => (b.decidedAt ?? "").localeCompare(a.decidedAt ?? ""));
+  const review = payouts.filter((p) => p.status === "needs_review");
+  const decided = payouts.filter((p) => p.status === "approved" || p.status === "rejected").sort((a, b) => (b.decidedAt ?? "").localeCompare(a.decidedAt ?? ""));
   const chosen = pending.filter((p) => selected.has(p.id));
   const chosenTotal = chosen.reduce((s, p) => s + p.amount, 0);
   const missingAccount = chosen.filter((p) => !workerById(p.workerId)?.payoutEmail);
@@ -42,6 +43,27 @@ export function PayoutsView() {
         <StatCard label="Pending amount" value={formatMoney(pending.reduce((s, p) => s + p.amount, 0))} />
         <StatCard label="Selected" value={formatMoney(chosenTotal)} hint={`${chosen.length} payout${chosen.length === 1 ? "" : "s"}`} />
       </div>
+
+      {review.length > 0 && (
+        <Card title={`Needs review (${review.length})`} className="mb-6" flush>
+          <p className="border-b border-amber-200 bg-amber-50 px-5 py-3 text-sm text-amber-900">
+            These workers have missing or conflicting records, so they can&apos;t be approved yet. Fix the data on the{" "}
+            <Link href="/attendance" className="font-medium underline">Attendance</Link> page, then submit the period again from{" "}
+            <Link href="/incentives" className="font-medium underline">Incentives</Link>.
+          </p>
+          <ul className="divide-y divide-slate-100">
+            {review.map((p) => (
+              <li key={p.id} className="flex items-start gap-3 px-5 py-3 text-sm">
+                <Avatar name={workerById(p.workerId)?.name ?? "?"} />
+                <div>
+                  <p className="font-medium text-slate-900">{workerById(p.workerId)?.name} <StatusBadge status={p.status} /></p>
+                  {p.reviewReasons?.map((r) => <p key={r} className="text-xs text-amber-800">{r}</p>)}
+                </div>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
 
       <Card
         title="Awaiting approval"
@@ -109,7 +131,9 @@ export function PayoutsView() {
                               <dt>Base ({b.payDays} days)</dt><dd className="text-right tabular-nums">{formatMoney(b.basePay)}</dd>
                               <dt>Overtime ({b.overtimeHours}h)</dt><dd className="text-right tabular-nums">{formatMoney(b.overtimePay)}</dd>
                               <dt>Performance ({b.extraUnits} extra units)</dt><dd className="text-right tabular-nums">{formatMoney(b.performanceIncentive)}</dd>
+                              <dt>Delivery tiers</dt><dd className="text-right tabular-nums">{formatMoney(b.tierBonus ?? 0)}</dd>
                               <dt>Attendance bonus</dt><dd className="text-right tabular-nums">{formatMoney(b.attendanceBonus)}</dd>
+                              <dt>Rules version</dt><dd className="text-right tabular-nums">v{p.ruleVersion ?? 1}</dd>
                             </dl>
                             <div className="mt-3 flex gap-2">
                               <Button variant="primary" onClick={() => act("approve", [p.id])}>Approve</Button>

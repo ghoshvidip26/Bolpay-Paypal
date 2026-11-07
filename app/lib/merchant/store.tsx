@@ -33,7 +33,7 @@ const EMPTY: Snapshot = {
   period: CURRENT_PERIOD,
   workers: [],
   attendance: [],
-  rules: { workingHoursPerDay: 8, overtimeMultiplier: 1.5, dailyUnitTarget: 0, ratePerExtraUnit: 0, attendanceThreshold: 1, attendanceBonus: 0 },
+  rules: { workingHoursPerDay: 8, overtimeMultiplier: 1.5, dailyUnitTarget: 0, ratePerExtraUnit: 0, attendanceThreshold: 1, attendanceBonus: 0, deliveryTiers: [], version: 1 },
   payouts: [],
   transactions: [],
 };
@@ -60,12 +60,13 @@ interface Store extends Snapshot {
   loaded: boolean;
   error: string | null;
   dismissError: () => void;
-  addWorker: (w: { name: string; role: string; phone: string; payoutEmail: string; dailyWage: number }) => Promise<void>;
+  addWorker: (w: { name: string; role: string; city: string; phone: string; payoutEmail: string; dailyWage: number }) => Promise<void>;
+  importCsv: (kind: "workers" | "deliveries", csv: string) => Promise<{ imported: number; errors: string[] } | null>;
   updateWorker: (id: string, patch: Partial<Worker>) => void;
   setAttendance: (workerId: string, date: string, patch: Partial<AttendanceRecord>) => void;
   markStatus: (workerId: string, date: string, status: AttendanceStatus) => void;
   setRules: (rules: IncentiveRules) => void;
-  submitPeriodForApproval: () => Promise<number>;
+  submitPeriodForApproval: (filter?: { city?: string | null; minUnits?: number | null; date?: string | null }) => Promise<{ created: number; needsReview: number; skipped: number }>;
   approvePayouts: (ids: string[]) => Promise<void>;
   rejectPayouts: (ids: string[]) => Promise<void>;
   retryTransaction: (id: string) => Promise<void>;
@@ -75,7 +76,7 @@ interface Store extends Snapshot {
 const StoreContext = createContext<Store | null>(null);
 const POLL_MS = 4000;
 
-type ApiResult = { state?: Snapshot; error?: string; created?: number };
+type ApiResult = { state?: Snapshot; error?: string; created?: number; needsReview?: number; skipped?: number; import?: { imported: number; errors: string[] } };
 
 async function request(method: string, path: string, body?: unknown): Promise<ApiResult & { ok: boolean }> {
   try {
@@ -172,11 +173,16 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         dispatch({ type: "setRules", rules });
         enqueue("PUT", "/api/rules", rules);
       },
-      submitPeriodForApproval: async () => {
+      submitPeriodForApproval: async (filter) => {
         // Make sure queued attendance edits are saved before the server computes pay.
         await queue.current;
-        const r = await request("POST", "/api/payouts/submit-period");
-        return apply(r) ? (r.created ?? 0) : 0;
+        const r = await request("POST", "/api/payouts/submit-period", filter ?? {});
+        return apply(r) ? { created: r.created ?? 0, needsReview: r.needsReview ?? 0, skipped: r.skipped ?? 0 } : { created: 0, needsReview: 0, skipped: 0 };
+      },
+      importCsv: async (kind, csv) => {
+        await queue.current;
+        const r = await request("POST", "/api/import", { kind, csv });
+        return apply(r) ? (r.import ?? null) : null;
       },
       approvePayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "approved" })),
       rejectPayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "rejected" })),

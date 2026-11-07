@@ -110,9 +110,24 @@ export function resolveIntent(raw: RawIntent): IntentPlan {
 
     case "prepare_incentives": {
       const warnings: string[] = [];
-      if (raw.minimumUnits !== null) warnings.push(`The "at least ${raw.minimumUnits} units" condition isn't supported yet, so all active workers are included.`);
-      if (raw.city) warnings.push(`City filtering (${raw.city}) isn't supported yet.`);
-      return { kind: "prepare", warnings };
+      let city: string | null = null;
+      if (raw.city) {
+        const q = norm(raw.city);
+        const known = [...new Set(db.workers.filter((w) => w.status === "active").map((w) => w.city))];
+        city = known.find((c) => norm(c) === q) ?? known.find((c) => norm(c).includes(q) || q.includes(norm(c))) ?? null;
+        if (!city) return { kind: "answer", text: `I couldn't find any workers in ${raw.city}.` };
+      }
+      let date: string | null = null;
+      if (raw.minimumUnits !== null) {
+        const d = resolveDate(raw.date);
+        if ("reason" in d) return { kind: "unknown", reason: d.reason };
+        date = d.date;
+        warnings.push(`Only workers with at least ${raw.minimumUnits} deliveries on ${date} are included. Their payout is the full period amount from the rules engine.`);
+      }
+      if (city) warnings.push(`Only workers in ${city} are included.`);
+      warnings.push("Amounts come from the incentive rules (tiers on the Incentives screen), not from the command. Workers with missing or conflicting records are flagged Needs Review automatically.");
+      warnings.push("One command does one action. Say anything else (like marking attendance) as a separate command.");
+      return { kind: "prepare", warnings, filter: { city, minUnits: raw.minimumUnits, date } };
     }
 
     case "payout_status":

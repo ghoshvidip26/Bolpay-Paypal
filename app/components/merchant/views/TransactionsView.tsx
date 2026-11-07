@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useStore } from "@/app/lib/merchant/store";
-import { formatDateTime, formatMoney } from "@/app/lib/merchant/format";
+import { formatDateTime, formatMoney, formatUsd } from "@/app/lib/merchant/format";
 import type { TransactionStatus } from "@/app/lib/merchant/types";
 import { Avatar, Button, Card, EmptyState, PageHeader, StatCard, StatusBadge, td, th } from "../ui";
 
@@ -50,7 +50,7 @@ export function TransactionsView() {
                       <td className={`${td} font-mono text-xs`}>{t.reference}</td>
                       <td className={td}>{t.periodLabel}</td>
                       <td className={td}>{formatDateTime(t.createdAt)}</td>
-                      <td className={`${td} text-right tabular-nums`}>{formatMoney(t.amount)}</td>
+                      <td className={`${td} text-right tabular-nums`}>{formatMoney(t.amount)}{t.usdAmount != null && <p className="text-xs text-slate-500" title={`Sent to PayPal at ₹${t.fxRate}/$`}>{formatUsd(t.usdAmount)} via PayPal</p>}</td>
                       <td className={td}>
                         <StatusBadge status={t.status} />
                         {t.failureReason && <p className="mt-1 text-xs text-rose-600">{t.failureReason}</p>}

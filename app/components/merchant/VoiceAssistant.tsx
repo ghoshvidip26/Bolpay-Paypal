@@ -147,8 +147,11 @@ export function VoiceAssistant() {
         store.setAttendance(plan.workerId, plan.date, { units: plan.units });
         break;
       case "prepare": {
-        const n = await store.submitPeriodForApproval();
-        setMessage(n > 0 ? `${n} payout${n === 1 ? "" : "s"} are ready for your approval.` : "Nothing new to submit for this period.");
+        const r = await store.submitPeriodForApproval(plan.filter);
+        const parts: string[] = [];
+        if (r.created > 0) parts.push(`${r.created} payout${r.created === 1 ? " is" : "s are"} ready for your approval`);
+        if (r.needsReview > 0) parts.push(`${r.needsReview} flagged for review because of missing or conflicting records`);
+        setMessage(parts.length ? `${parts.join(", ")}.` : "Nothing new to submit for this period.");
         router.push("/payouts");
         setText("");
         return;

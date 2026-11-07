@@ -10,7 +10,7 @@ export type IntentPlan =
   | { kind: "overtime"; workerId: string; workerName: string; hours: number; date: string }
   | { kind: "units"; workerId: string; workerName: string; units: number; date: string }
   | { kind: "approve" | "reject"; workerId: string | null; workerName: string | null }
-  | { kind: "prepare"; warnings: string[] }
+  | { kind: "prepare"; warnings: string[]; filter?: { city: string | null; minUnits: number | null; date: string | null } }
   | { kind: "navigate"; to: string; label: string }
   | { kind: "answer"; text: string; language?: string }
   | { kind: "clarify"; question: string; language?: string }
