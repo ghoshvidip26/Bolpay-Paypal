@@ -18,15 +18,17 @@ Updated 2026-11-07. Gaps between the code ([BUILT.md](./BUILT.md)) and the [PRD]
 1. **Webhooks:** register a public URL (ngrok or Render), set `PAYPAL_WEBHOOK_ID`, test valid and invalid signatures. Sync works without it.
 2. **Per-day incentive batches:** the voice filter "at least 20 deliveries today" selects qualifying riders, but each gets the full *period* amount. A true daily incentive batch (only that day's tier bonus) is not modelled.
 3. **Status model:** payouts have pending / needs_review / approved / rejected, and transactions have processing / completed / failed. The PRD's Draft and Approved-as-separate-step states are not separate.
-4. **Fix-and-resubmit for Needs Review** works by editing attendance and submitting again; there is no "mark reviewed, approve anyway" action.
-5. **Languages:** English and Hindi were tested. Kannada, Tamil, Bengali and code-mixed speech are untested.
+4. **Fix-and-resubmit for Needs Review** works by editing attendance and submitting again (by voice too); there is no "mark reviewed, approve anyway" action.
+5. **Languages:** English, Hindi and Hinglish are tested. Kannada, Tamil and Bengali are untested.
 6. **Audit log UI:** entries are recorded but not displayed or downloadable.
-7. **Browser microphone path:** server chain is verified; the in-browser recording button has not been exercised by me.
+7. **Browser microphone path:** the server voice flow is covered by 40 eval fixtures and typed-command UI checks; real microphone recording in a browser has not been exercised by me. Do the manual script in [VOICE.md](./VOICE.md).
+7b. **Voice limits:** a flow cannot name a worker that an earlier step in the same sentence creates (say it as two commands); planning needs the model, and Groq's free tier allows 8,000 tokens per minute per model, so rapid-fire turns can hit a short wait (the assistant says so, and fails over to a second model first).
+7c. **Eval coverage:** Hindi and Hinglish are covered; Kannada, Tamil and Bengali are not.
 8. **Currency:** ₹ display with a fixed USD settlement rate (`INR_PER_USD`). Fine for a sandbox demo; say so in the pitch.
 9. **No automated tests.** At least the incentive engine (tiers, overtime, bonus) and `submitPeriod` filters deserve unit tests.
 10. Nice-to-haves: worker payout statements, downloadable reports, payout analytics, language switcher, AG Grid tables (sponsor prize).
 
 ## Sandbox housekeeping
-- Upload `bolpay-sandbox-workers-5-24.csv` (bulk account creation) so riders 5–24 have real sandbox recipients. Until then payouts to them stay unclaimed or pending.
-- Each full-team batch costs about **$2,470** from the sandbox business balance (₹210k at ₹85/$). Approve only a few riders when rehearsing, or top the account up in the sandbox dashboard.
+- Riders 5–24 need sandbox accounts (`bolpay-sandbox-workers-5-24.csv` bulk upload, done). Rider 25 deliberately has no email.
+- A full-team batch costs about **$2,470** of sandbox money; the business balance was topped up to US$100,000.
 - Remove unused `i` and `npm` entries from `package.json`.

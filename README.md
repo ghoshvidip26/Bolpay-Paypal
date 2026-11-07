@@ -7,12 +7,13 @@ Built for the PayPal AI Hackathon 2026.
 - Product spec: [docs/PRD.md](docs/PRD.md)
 - What works today: [docs/BUILT.md](docs/BUILT.md)
 - What is left: [docs/REMAINING.md](docs/REMAINING.md)
+- Voice control (architecture, testing, manual script): [docs/VOICE.md](docs/VOICE.md)
 
 ## How AI is used
 | Tool | Used for |
 |---|---|
 | ElevenLabs Scribe | Speech-to-text for voice commands |
-| Groq LLM (`openai/gpt-oss-120b` by default) | Extracts a strict-schema intent from the transcript and translates replies. It never calculates amounts. |
+| Groq LLM (`openai/gpt-oss-120b`, falling back to `gpt-oss-20b`) | Plans an ordered list of steps from the transcript, follows up on missing details, and translates replies. It never calculates amounts and never decides to execute. |
 | ElevenLabs TTS | Spoken replies and payout status updates |
 
 The server validates every model output and resolves workers and dates itself. The rules engine in `app/lib/merchant/incentives.ts` is the only source of pay amounts.

@@ -40,3 +40,9 @@ Bolpay ("PayCrew" in some strings) — a hackathon app for merchants to manage h
 - PayPal's India business sandbox accounts can't send payouts; use a US business sandbox app.
 - `submitPeriod` marks workers with missing or conflicting records `needs_review`; `decidePayouts` only acts on `pending`, so those can't be approved.
 - Status docs: `docs/PRD.md`, `docs/BUILT.md`, `docs/REMAINING.md`.
+
+## Voice assistant
+- `app/lib/voice/` is the whole voice stack: `catalog.json` (every action, slot, phrase and prompt rule), `planner.ts` (LLM to ordered steps), `resolver.ts` and `selectors.ts` (validate against real records), `executor.ts` (runs steps, money checkpoint), `session.ts` (server-side conversation state), `queries.ts` (read-only answers), `metrics.ts`. Entry point: `POST /api/voice/turn`. The older `/api/intent` route and `voice-commands.ts` are no longer used by the UI.
+- Add an action: catalog entry plus a `case` in `runStep` (executor.ts) plus eval fixtures. Test with `npm run test:voice` (needs the dev server and a Groq key). Details: `docs/VOICE.md`.
+- Groq's free tier is 8,000 tokens per minute per model, so keep the planner prompt small.
+- Turbopack sometimes serves a stale copy of an edited server module; if a function "is not a function" right after an edit, change the file's content and retry.

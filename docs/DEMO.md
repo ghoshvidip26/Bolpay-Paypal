@@ -55,6 +55,8 @@ Deliberate seed problems: riders **7 and 13** are missing attendance days, rider
 10. **PayPal side:** log in at https://sandbox.paypal.com as `bolpay-worker-1@personal.example.com` (password from your bulk CSV, `J0nhD03!`). The payment is in Activity.
 
 ## 4. Voice flow
+The assistant now handles multi-step sentences, follow-up questions, spoken "confirm" and exact-amount checkpoints. The full guide and a manual test script are in [VOICE.md](./VOICE.md); the short version is below.
+
 Click the round teal button (bottom-right) to open the panel.
 
 1. Press **Tap and speak**, say the command, press again to stop.
