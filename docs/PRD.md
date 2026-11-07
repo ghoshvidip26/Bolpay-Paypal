@@ -160,3 +160,42 @@ Original plan: Express + PostgreSQL + Prisma. Current implementation: a file-bac
 | LLM misreads a command | Strict schema, server validation, clarification questions |
 | JSON store loses data or fails on serverless hosts | Move to Postgres, or demo locally |
 | Duplicate payments | Deterministic `sender_batch_id`, per-transaction state |
+
+## 15. Version 1.1: changes and extensions (2026-11-07)
+
+Decisions made while building, and requirements added after the first draft. Open work is tracked in [REMAINING.md](./REMAINING.md) by ID.
+
+### 15.1 Changes to the original scope
+- **Currency:** amounts are shown and stored in ₹; PayPal settles in USD at a configured rate. Reason: PayPal blocked the India sender sandbox account; INR payouts to other countries are unverified.
+- **Architecture:** Next.js route handlers replace Express; storage is a JSON file behind a service layer (Postgres + Prisma is still the target, decision B-01).
+- **Status model:** payout statuses are pending, needs_review, approved, rejected; transaction statuses are processing, completed, failed. Draft and a separate Approved step are future work (D-03).
+- **Daily incentive filter:** "at least 20 deliveries today" selects qualifying riders, who receive the period amount; a true daily-only batch is future work (D-01).
+
+### 15.2 Voice control requirements (new, replaces and extends §5.3 and §5.4)
+Voice is the product's main strength: the whole workflow can be run by voice.
+- **VC-1 Multi-step commands.** One utterance may contain several actions; they run in the order spoken and stop at the first failure.
+- **VC-2 Scope.** Voice can do everything the screens do: attendance, overtime, deliveries, prepare, approve, reject and retry payouts, refresh statuses, add and update workers, change rules and tiers, answer questions, navigate.
+- **VC-3 Targets.** Multiple names, "everyone", "everyone except", a city, a filter (for example missing attendance) and a minimum delivery count, resolved by the server from real records.
+- **VC-4 Follow-ups.** Missing or ambiguous details produce one clarifying question; the reply continues the same request. An unrelated reply must not be mistaken for an answer; the assistant says it set the question aside.
+- **VC-5 Persistent session.** Tapping the mic again, closing the panel or reloading the page must not lose a pending question or plan. Only an explicit "new conversation" or the idle timeout ends it.
+- **VC-6 Spoken confirm.** Saying "confirm" (or the equivalent in supported languages) runs the stored plan; saying "cancel" drops it. Only a whole-utterance phrase counts; a phrase inside a longer instruction is a new instruction.
+- **VC-7 Exact money.** Before any approve or retry step runs, the manager sees and confirms the exact payment count and totals in ₹ and US$. If earlier steps in the same flow change the numbers, the flow pauses with the real figures.
+- **VC-8 Safety.** The model never calculates money and never decides to execute. Confirm only runs the plan the server stored; every step is re-validated at execution. Prompt-injection attempts must not execute anything.
+- **VC-9 Measurability.** The assistant exposes metrics (latency, clarification, supersede and error rates, models used) and ships an automated eval of conversation fixtures.
+- **VC-10 Languages.** English, Hindi and Hinglish verified; Kannada, Tamil and Bengali to be verified (V-02).
+
+### 15.3 Additional requirements
+- **AR-1 Needs Review.** Missing or conflicting records must block approval until fixed; the manager is told why.
+- **AR-2 Rule versioning and audit.** Every payout records the rules version and a snapshot; calculations, approvals, rule changes, imports and voice flows are logged.
+- **AR-3 Import.** Workers and daily deliveries can be imported from CSV with row-level error reporting.
+- **AR-4 Reconciliation.** Internal transaction state must be comparable with PayPal batch items, with mismatches flagged (P-04).
+- **AR-5 Explained payment states.** Unclaimed, on-hold, returned and blocked items need their own explained states (P-05).
+- **AR-6 Demo-ability.** A judge must be able to run the app from the README alone, with seeded data that includes a flagged worker, a missing-email failure and a retry.
+- **AR-7 Rate-limit resilience.** The assistant must degrade gracefully when the model provider rate-limits (failover, spoken wait message).
+
+### 15.4 Success metrics (updated)
+- Voice eval pass rate of at least 95 percent on the fixture suite (currently 40 of 40).
+- A multi-step spoken flow runs end to end with the exact-amount checkpoint, with no payment sent before the final confirm.
+- Zero payments sent without an explicit confirmation across all test runs.
+- Webhook-driven status updates arrive without pressing sync (P-01).
+
