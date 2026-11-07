@@ -71,6 +71,10 @@ interface Store extends Snapshot {
   rejectPayouts: (ids: string[]) => Promise<void>;
   retryTransaction: (id: string) => Promise<void>;
   workerById: (id: string) => Worker | undefined;
+  /** Replaces the local data with a server snapshot (used after a voice flow runs on the server). */
+  applySnapshot: (snapshot: Snapshot) => void;
+  /** Resolves once queued optimistic writes have reached the server. */
+  flush: () => Promise<void>;
 }
 
 const StoreContext = createContext<Store | null>(null);
@@ -188,6 +192,10 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       rejectPayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "rejected" })),
       retryTransaction: async (id) => void (await act("POST", `/api/transactions/${encodeURIComponent(id)}/retry`)),
       workerById: (id) => state.workers.find((w) => w.id === id),
+      applySnapshot: (snapshot) => dispatch({ type: "replace", snapshot }),
+      flush: async () => {
+        await queue.current;
+      },
     };
   }, [state, loaded, error, apply, enqueue]);
 
