@@ -115,20 +115,25 @@ export async function groqChat(args: {
   messages: ChatMessage[];
   maxTokens: number;
   response?: "schema" | "json_object" | "text";
+  /** JSON schema for response: "schema"; defaults to the single-intent schema. */
+  schema?: { name: string; schema: Record<string, unknown> };
+  /** Overrides GROQ_MODEL for this call. */
+  model?: string;
 }): Promise<string> {
   const apiKey = process.env.GROQ_API_KEY;
   if (!apiKey) throw new IntentModelError("GROQ_API_KEY is not set", "not_configured");
 
+  const model = args.model ?? GROQ_MODEL;
   const body: Record<string, unknown> = {
-    model: GROQ_MODEL,
+    model,
     messages: args.messages,
     temperature: 0,
     max_completion_tokens: args.maxTokens,
   };
   // gpt-oss models reason before answering; keep it short for a voice flow.
-  if (GROQ_MODEL.startsWith("openai/gpt-oss")) body.reasoning_effort = "low";
+  if (model.startsWith("openai/gpt-oss")) body.reasoning_effort = "low";
   if (args.response === "schema") {
-    body.response_format = { type: "json_schema", json_schema: { name: "voice_intent", strict: false, schema: OUTPUT_SCHEMA } };
+    body.response_format = { type: "json_schema", json_schema: { name: args.schema?.name ?? "voice_intent", strict: false, schema: args.schema?.schema ?? OUTPUT_SCHEMA } };
   } else if (args.response === "json_object") {
     body.response_format = { type: "json_object" };
   }
