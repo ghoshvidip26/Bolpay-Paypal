@@ -16,9 +16,7 @@
     "@paypal/react-paypal-js": "^10.6.1",
     "@supabase/ssr": "0.12.7",
     "@supabase/supabase-js": "2.119.0",
-    "i": "^0.3.7",
     "next": "16.4.3",
-    "npm": "^12.2.1",
     "react": "19.3.0",
     "react-dom": "19.3.0"
   },
