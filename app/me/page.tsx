@@ -1,20 +1,29 @@
 import type { Metadata } from "next";
 import { Suspense } from "react";
-import { PageLoading } from "@/app/components/PageLoading";
+import { WorkerSkeleton } from "@/app/components/Skeleton";
+import { Brand } from "@/app/components/icons";
+import { SiteFooter } from "@/app/components/SiteFooter";
 import { requireRole } from "@/app/lib/auth/dal";
 import { getSnapshot } from "@/app/lib/server/service";
 import { calculatePay } from "@/app/lib/merchant/incentives";
 import { dateRange, formatDate, formatDateTime, formatMoney, formatUsd } from "@/app/lib/merchant/format";
-import { Card, EmptyState, PageHeader, StatCard, StatusBadge, td, th } from "@/app/components/merchant/ui";
+import { Card, EmptyState, Notice, PageHeader, Stat, Stats, StatusBadge, td, th, thRight } from "@/app/components/merchant/ui";
 import { signOut } from "@/app/login/actions";
 
 export const metadata: Metadata = { title: "My pay · BolPay" };
 
-const DOT = { present: "bg-emerald-500", half: "bg-amber-400", absent: "bg-rose-500", leave: "bg-sky-500" } as const;
+const DOT = { present: "bg-emerald-500", half: "bg-amber-500", absent: "bg-rose-500", leave: "bg-sky-500" } as const;
+const LEGEND = [
+  { label: "Present", dot: DOT.present },
+  { label: "Half day", dot: DOT.half },
+  { label: "Absent", dot: DOT.absent },
+  { label: "Leave", dot: DOT.leave },
+  { label: "Not marked", dot: "bg-slate-200" },
+];
 
 export default function MyPayPage() {
   return (
-    <Suspense fallback={<PageLoading />}>
+    <Suspense fallback={<WorkerSkeleton />}>
       <MyPay />
     </Suspense>
   );
@@ -29,25 +38,22 @@ async function MyPay() {
 
   const header = (
     <header className="mb-6 flex items-center justify-between gap-3">
-      <div className="flex items-center gap-2">
-        <span className="flex size-8 items-center justify-center rounded-lg bg-teal-600 text-sm font-bold text-white">B</span>
-        <div>
-          <p className="font-semibold leading-tight">BolPay</p>
-          <p className="text-xs text-slate-500">{session.business.name}</p>
-        </div>
-      </div>
+      <Brand sub={session.business.name} />
       <form action={signOut}>
-        <button className="rounded-lg px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-100">Sign out</button>
+        <button className="rounded-md px-2.5 py-1 text-xs font-medium text-slate-500 hover:bg-slate-200/60 hover:text-slate-900">Sign out</button>
       </form>
     </header>
   );
 
   if (!worker) {
     return (
-      <main className="mx-auto max-w-3xl px-4 py-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-5">
         {header}
-        <Card><EmptyState>Your login isn&apos;t linked to a worker profile yet. Ask your employer.</EmptyState></Card>
-      </main>
+        <main className="flex-1">
+          <Card><EmptyState>Your login isn&apos;t linked to a worker profile yet. Ask your employer to link it.</EmptyState></Card>
+        </main>
+        <SiteFooter className="mt-10 border-t border-slate-200 pt-4" />
+      </div>
     );
   }
 
@@ -60,63 +66,72 @@ async function MyPay() {
   const byDate = new Map(current.map((r) => [r.date, r]));
 
   return (
-    <main className="mx-auto max-w-3xl px-4 py-6 text-slate-900">
+    <div className="mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 py-5 text-slate-900">
       {header}
-      <PageHeader title={`Hi, ${worker.name.split(" ")[0]}`} description={`${worker.role} · ${worker.city} · pay period ${period.label}`} />
+      <main className="flex-1">
+        <PageHeader title={`Hi, ${worker.name.split(" ")[0]}`} description={`${worker.role} · ${worker.city} · Pay period ${period.label}`} />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard label="Earned so far" value={formatMoney(pay.total)} hint="This period" tone="good" />
-        <StatCard label="Days worked" value={String(pay.payDays)} hint={`of ${pay.periodDays} marked`} />
-        <StatCard label="Delivery bonus" value={formatMoney(pay.tierBonus + pay.performanceIncentive)} hint={`${pay.extraUnits} extra deliveries`} />
-        <StatCard label="Paid to date" value={formatMoney(paidTotal)} hint="Via PayPal" />
-      </div>
+        <Stats>
+          <Stat label="Earned so far" value={formatMoney(pay.total)} hint="This period" />
+          <Stat label="Days worked" value={String(pay.payDays)} hint={`of ${pay.periodDays} marked`} />
+          <Stat label="Delivery bonus" value={formatMoney(pay.tierBonus + pay.performanceIncentive)} hint={`${pay.extraUnits} extra deliveries`} />
+          <Stat label="Paid to date" value={formatMoney(paidTotal)} hint="Through PayPal" />
+        </Stats>
 
-      <Card title="This period" className="mt-6">
-        <div className="flex flex-wrap gap-1.5">
-          {dateRange(period.start, period.end).map((d) => {
-            const r = byDate.get(d);
-            return (
-              <div key={d} className="flex w-9 flex-col items-center gap-1 text-xs text-slate-500" title={r ? `${formatDate(d)}: ${r.status}` : formatDate(d)}>
-                <span className={`size-3 rounded-full ${r ? DOT[r.status] : d > today ? "bg-slate-100" : "bg-slate-200"}`} />
-                {Number(d.slice(8))}
-              </div>
-            );
-          })}
-        </div>
-        <dl className="mt-5 grid grid-cols-2 gap-x-6 gap-y-2 text-sm sm:grid-cols-4">
-          <div><dt className="text-slate-500">Base pay</dt><dd className="font-medium tabular-nums">{formatMoney(pay.basePay)}</dd></div>
-          <div><dt className="text-slate-500">Overtime</dt><dd className="font-medium tabular-nums">{formatMoney(pay.overtimePay)}</dd></div>
-          <div><dt className="text-slate-500">Delivery bonus</dt><dd className="font-medium tabular-nums">{formatMoney(pay.tierBonus + pay.performanceIncentive)}</dd></div>
-          <div><dt className="text-slate-500">Attendance bonus</dt><dd className="font-medium tabular-nums">{formatMoney(pay.attendanceBonus)}</dd></div>
-        </dl>
         {pending.length > 0 && (
-          <p className="mt-4 text-sm text-amber-700">Waiting for approval: {formatMoney(pending.reduce((s, p) => s + p.amount, 0))}</p>
+          <Notice tone="info" className="mt-4">
+            {formatMoney(pending.reduce((s, p) => s + p.amount, 0))} is waiting for your employer&apos;s approval.
+          </Notice>
         )}
-      </Card>
 
-      <Card title="Payment history" className="mt-6" flush>
-        {transactions.length === 0 ? <EmptyState>No payments yet.</EmptyState> : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[520px]">
-              <thead><tr><th className={th}>Period</th><th className={th}>Date</th><th className={th}>Reference</th><th className={`${th} text-right`}>Amount</th><th className={th}>Status</th></tr></thead>
-              <tbody className="divide-y divide-slate-100">
-                {transactions.map((t) => (
-                  <tr key={t.id}>
-                    <td className={td}>{t.periodLabel}</td>
-                    <td className={td}>{formatDateTime(t.createdAt)}</td>
-                    <td className={`${td} font-mono text-xs`}>{t.reference}</td>
-                    <td className={`${td} text-right tabular-nums`}>
-                      {formatMoney(t.amount)}
-                      {t.usdAmount !== undefined && <span className="block text-xs text-slate-500">{formatUsd(t.usdAmount)} via PayPal</span>}
-                    </td>
-                    <td className={td}><StatusBadge status={t.status} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+        <Card title="This period" className="mt-5">
+          <div className="flex flex-wrap gap-1">
+            {dateRange(period.start, period.end).map((d) => {
+              const r = byDate.get(d);
+              return (
+                <div key={d} className="flex w-8 flex-col items-center gap-1 text-xs text-slate-500 tabular-nums" title={r ? `${formatDate(d)}: ${r.status}` : formatDate(d)}>
+                  <span className={`size-3 rounded-sm ${r ? DOT[r.status] : d > today ? "bg-slate-100" : "bg-slate-200"}`} />
+                  {Number(d.slice(8))}
+                </div>
+              );
+            })}
           </div>
-        )}
-      </Card>
-    </main>
+          <div className="mt-3 flex flex-wrap gap-4 text-xs text-slate-500">
+            {LEGEND.map((l) => <span key={l.label} className="flex items-center gap-1.5"><span className={`size-2.5 rounded-sm ${l.dot}`} />{l.label}</span>)}
+          </div>
+          <dl className="mt-4 grid grid-cols-2 gap-x-6 gap-y-3 border-t border-slate-200 pt-4 sm:grid-cols-4">
+            <div><dt className="text-xs text-slate-500">Base pay</dt><dd className="mt-0.5 font-medium tabular-nums">{formatMoney(pay.basePay)}</dd></div>
+            <div><dt className="text-xs text-slate-500">Overtime</dt><dd className="mt-0.5 font-medium tabular-nums">{formatMoney(pay.overtimePay)}</dd></div>
+            <div><dt className="text-xs text-slate-500">Delivery bonus</dt><dd className="mt-0.5 font-medium tabular-nums">{formatMoney(pay.tierBonus + pay.performanceIncentive)}</dd></div>
+            <div><dt className="text-xs text-slate-500">Attendance bonus</dt><dd className="mt-0.5 font-medium tabular-nums">{formatMoney(pay.attendanceBonus)}</dd></div>
+          </dl>
+        </Card>
+
+        <Card title="Payment history" className="mt-5" flush>
+          {transactions.length === 0 ? <EmptyState>No payments yet.</EmptyState> : (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px]">
+                <thead><tr><th className={th}>Period</th><th className={th}>Date</th><th className={th}>Reference</th><th className={thRight}>Amount</th><th className={th}>Status</th></tr></thead>
+                <tbody className="divide-y divide-slate-100">
+                  {transactions.map((t) => (
+                    <tr key={t.id}>
+                      <td className={`${td} whitespace-nowrap`}>{t.periodLabel}</td>
+                      <td className={`${td} whitespace-nowrap text-slate-500`}>{formatDateTime(t.createdAt)}</td>
+                      <td className={`${td} font-mono text-xs`}>{t.reference && t.reference !== "—" ? t.reference : <span className="font-sans text-slate-400">Not assigned</span>}</td>
+                      <td className={`${td} text-right tabular-nums`}>
+                        <span className="text-slate-900">{formatMoney(t.amount)}</span>
+                        {t.usdAmount !== undefined && <span className="block text-xs text-slate-500">{formatUsd(t.usdAmount)} via PayPal</span>}
+                      </td>
+                      <td className={td}><StatusBadge status={t.status} /></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </Card>
+      </main>
+      <SiteFooter className="mt-10 border-t border-slate-200 pt-4" />
+    </div>
   );
 }

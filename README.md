@@ -393,7 +393,7 @@ npm run dev                  # http://localhost:3000
 
 ### Sign in
 
-The demo logins all use the password `BolPayDemo#2026`, and `/login` has a one-click button for each:
+The demo logins all use the password `BolPayDemo#2026`. Enter them on `/login`:
 
 | Login | Role | Can do |
 |---|---|---|

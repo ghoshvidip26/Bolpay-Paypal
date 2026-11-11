@@ -1,72 +1,63 @@
 "use client";
 
-import { useActionState, useRef } from "react";
+import { useActionState, useState } from "react";
 import { signIn, type LoginState } from "./actions";
-
-const DEMO_PASSWORD = "BolPayDemo#2026";
-const DEMO_ACCOUNTS = [
-  { email: "owner@demo.bolpay.app", label: "Owner", hint: "Everything, incl. payouts" },
-  { email: "supervisor@demo.bolpay.app", label: "Supervisor", hint: "Marks attendance" },
-  { email: "ravi@demo.bolpay.app", label: "Worker (Ravi)", hint: "Own pay only" },
-];
-
-const input =
-  "w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-teal-500 focus:ring-2 focus:ring-teal-100";
+import { IconAlert, IconEye, IconEyeOff } from "@/app/components/icons";
+import { buttonClass, fieldClass } from "@/app/components/merchant/ui";
 
 export function LoginForm() {
   const [state, action, pending] = useActionState<LoginState, FormData>(signIn, {});
-  const form = useRef<HTMLFormElement>(null);
-
-  function signInAs(email: string) {
-    const f = form.current;
-    if (!f) return;
-    (f.elements.namedItem("email") as HTMLInputElement).value = email;
-    (f.elements.namedItem("password") as HTMLInputElement).value = DEMO_PASSWORD;
-    f.requestSubmit();
-  }
+  const [showPassword, setShowPassword] = useState(false);
 
   return (
-    <>
-      <form ref={form} action={action} className="space-y-4">
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Email</span>
-          <input name="email" type="email" autoComplete="email" defaultValue={state.email} required className={input} />
-        </label>
-        <label className="block">
-          <span className="mb-1 block text-sm font-medium text-slate-700">Password</span>
-          <input name="password" type="password" autoComplete="current-password" required className={input} />
-        </label>
-        {state.error && (
-          <p role="alert" className="text-sm text-rose-600">
-            {state.error}
-          </p>
-        )}
-        <button
-          type="submit"
-          disabled={pending}
-          className="w-full rounded-lg bg-teal-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-teal-700 disabled:bg-slate-300"
-        >
-          {pending ? "Signing in…" : "Sign in"}
-        </button>
-      </form>
+    <form action={action} className="flex flex-col gap-3.5">
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-slate-700">Email</span>
+        <input
+          name="email"
+          type="email"
+          autoComplete="email"
+          inputMode="email"
+          spellCheck={false}
+          defaultValue={state.email}
+          required
+          aria-invalid={state.error ? true : undefined}
+          className={fieldClass("h-9 w-full px-2.5 text-sm")}
+        />
+      </label>
+      <label className="block">
+        <span className="mb-1 block text-sm font-medium text-slate-700">Password</span>
+        <span className="relative block">
+          <input
+            name="password"
+            type={showPassword ? "text" : "password"}
+            autoComplete="current-password"
+            required
+            aria-invalid={state.error ? true : undefined}
+            className={fieldClass("h-9 w-full pl-2.5 pr-9 text-sm")}
+          />
+          <button
+            type="button"
+            onClick={() => setShowPassword((s) => !s)}
+            aria-label={showPassword ? "Hide password" : "Show password"}
+            aria-pressed={showPassword}
+            className="absolute inset-y-0 right-0 flex w-9 items-center justify-center rounded-r-md text-slate-400 hover:text-slate-700 focus-visible:outline-2 focus-visible:outline-teal-700"
+          >
+            {showPassword ? <IconEyeOff className="size-4" /> : <IconEye className="size-4" />}
+          </button>
+        </span>
+      </label>
 
-      <div className="mt-6 border-t border-slate-100 pt-5">
-        <p className="mb-3 text-xs font-medium uppercase tracking-wide text-slate-400">Demo accounts</p>
-        <div className="grid gap-2 sm:grid-cols-3">
-          {DEMO_ACCOUNTS.map((a) => (
-            <button
-              key={a.email}
-              type="button"
-              disabled={pending}
-              onClick={() => signInAs(a.email)}
-              className="rounded-lg border border-slate-200 px-3 py-2 text-left hover:border-teal-400 hover:bg-teal-50 disabled:opacity-50"
-            >
-              <span className="block text-sm font-medium text-slate-800">{a.label}</span>
-              <span className="block text-xs text-slate-500">{a.hint}</span>
-            </button>
-          ))}
-        </div>
-      </div>
-    </>
+      {state.error && (
+        <p role="alert" className="flex items-start gap-2 text-sm text-rose-700">
+          <IconAlert className="mt-0.5 size-4 shrink-0" />
+          {state.error}
+        </p>
+      )}
+
+      <button type="submit" disabled={pending} className={buttonClass("primary", "lg", "w-full")}>
+        {pending ? "Signing in…" : "Sign in"}
+      </button>
+    </form>
   );
 }

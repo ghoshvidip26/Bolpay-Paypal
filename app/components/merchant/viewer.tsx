@@ -25,3 +25,8 @@ export function useViewer() {
   if (!v) throw new Error("useViewer must be used inside <ViewerProvider>");
   return { ...v, isOwner: v.role === "owner" };
 }
+
+/** Some accounts carry the role in their name ("Priyanka (Owner)"); the role is shown separately. */
+export function personName(displayName: string) {
+  return displayName.replace(/\s*\((owner|supervisor)\)\s*$/i, "") || displayName;
+}

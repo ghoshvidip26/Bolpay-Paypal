@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Suspense } from "react";
 import { redirect } from "next/navigation";
 import { getSession, homeFor } from "@/app/lib/auth/dal";
+import { BrandMark } from "@/app/components/icons";
 import { LoginForm } from "./LoginForm";
 
 export const metadata: Metadata = { title: "Sign in · BolPay" };
@@ -15,20 +17,34 @@ async function RedirectIfSignedIn(): Promise<null> {
 
 export default function LoginPage() {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-slate-50 px-4 py-10">
-      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <div className="mb-6 flex items-center gap-2">
-          <span className="flex size-9 items-center justify-center rounded-lg bg-teal-600 text-base font-bold text-white">B</span>
-          <div>
-            <h1 className="text-lg font-semibold tracking-tight text-slate-900">BolPay</h1>
-            <p className="text-xs text-slate-500">Speak attendance. Pay your crew.</p>
-          </div>
+    <div className="flex min-h-dvh flex-col items-center justify-center gap-4 bg-canvas px-4 py-6">
+      <main className="w-full max-w-[22rem] rounded-xl border border-slate-200 bg-white p-6 shadow-[0_1px_3px_rgba(15,23,42,0.06)]">
+        <div className="flex items-center gap-2.5">
+          <BrandMark className="size-8" />
+          <span className="text-base font-semibold tracking-tight text-slate-900">BolPay</span>
         </div>
-        <Suspense>
-          <RedirectIfSignedIn />
-        </Suspense>
-        <LoginForm />
-      </div>
-    </main>
+        <h1 className="mt-4 text-lg font-semibold tracking-tight text-slate-900">Sign in</h1>
+        <p className="mt-0.5 text-sm text-slate-500">Attendance, payroll and PayPal payouts.</p>
+
+        <div className="mt-4">
+          <Suspense>
+            <RedirectIfSignedIn />
+          </Suspense>
+          <LoginForm />
+        </div>
+
+        <p className="mt-4 border-t border-slate-100 pt-3.5 text-xs text-slate-500">
+          Invite-only. Ask your business owner for access.
+        </p>
+      </main>
+
+      <footer className="flex items-center gap-3 text-xs text-slate-500">
+        <span>© 2026 BolPay</span>
+        <span aria-hidden className="text-slate-300">·</span>
+        <Link href="/terms" className="hover:text-slate-900">Terms</Link>
+        <span aria-hidden className="text-slate-300">·</span>
+        <Link href="/privacy" className="hover:text-slate-900">Privacy</Link>
+      </footer>
+    </div>
   );
 }

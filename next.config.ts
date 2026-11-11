@@ -6,6 +6,8 @@ const nextConfig: NextConfig = {
     agentFeedback: true,
   },
   cacheComponents: true,
+  // The floating "N" badge covered the sidebar's account area. Compile and runtime errors still show.
+  devIndicators: false,
   partialPrefetching: true,
   turbopack: {
     rules: {

@@ -1,12 +1,12 @@
 import { Suspense } from "react";
 import { Shell } from "@/app/components/merchant/Shell";
-import { PageLoading } from "@/app/components/PageLoading";
+import { ShellSkeleton } from "@/app/components/Skeleton";
 import { requireRole } from "@/app/lib/auth/dal";
 
 export default function MerchantLayout({ children }: { children: React.ReactNode }) {
   // The session is read at request time, so it streams in behind Suspense (Cache Components).
   return (
-    <Suspense fallback={<PageLoading />}>
+    <Suspense fallback={<ShellSkeleton />}>
       <AuthedShell>{children}</AuthedShell>
     </Suspense>
   );

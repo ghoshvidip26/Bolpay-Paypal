@@ -60,16 +60,17 @@ interface Store extends Snapshot {
   loaded: boolean;
   error: string | null;
   dismissError: () => void;
-  addWorker: (w: { name: string; role: string; city: string; phone: string; payoutEmail: string; dailyWage: number }) => Promise<void>;
+  addWorker: (w: { name: string; role: string; city: string; phone: string; payoutEmail: string; dailyWage: number }) => Promise<boolean>;
   importCsv: (kind: "workers" | "deliveries", csv: string) => Promise<{ imported: number; errors: string[] } | null>;
   updateWorker: (id: string, patch: Partial<Worker>) => void;
   setAttendance: (workerId: string, date: string, patch: Partial<AttendanceRecord>) => void;
   markStatus: (workerId: string, date: string, status: AttendanceStatus) => void;
   setRules: (rules: IncentiveRules) => void;
   submitPeriodForApproval: (filter?: { city?: string | null; minUnits?: number | null; date?: string | null }) => Promise<{ created: number; needsReview: number; skipped: number }>;
-  approvePayouts: (ids: string[]) => Promise<void>;
-  rejectPayouts: (ids: string[]) => Promise<void>;
-  retryTransaction: (id: string) => Promise<void>;
+  /** These resolve to whether the server accepted the change (failures also set `error`). */
+  approvePayouts: (ids: string[]) => Promise<boolean>;
+  rejectPayouts: (ids: string[]) => Promise<boolean>;
+  retryTransaction: (id: string) => Promise<boolean>;
   workerById: (id: string) => Worker | undefined;
   /** Replaces the local data with a server snapshot (used after a voice flow runs on the server). */
   applySnapshot: (snapshot: Snapshot) => void;
@@ -159,7 +160,7 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
       loaded,
       error,
       dismissError: () => setError(null),
-      addWorker: async (w) => void (await act("POST", "/api/workers", w)),
+      addWorker: (w) => act("POST", "/api/workers", w),
       updateWorker: (id, patch) => {
         dispatch({ type: "updateWorker", id, patch });
         enqueue("PATCH", `/api/workers/${encodeURIComponent(id)}`, patch);
@@ -188,9 +189,9 @@ export function StoreProvider({ children }: { children: React.ReactNode }) {
         const r = await request("POST", "/api/import", { kind, csv });
         return apply(r) ? (r.import ?? null) : null;
       },
-      approvePayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "approved" })),
-      rejectPayouts: async (ids) => void (await act("POST", "/api/payouts/decide", { ids, decision: "rejected" })),
-      retryTransaction: async (id) => void (await act("POST", `/api/transactions/${encodeURIComponent(id)}/retry`)),
+      approvePayouts: (ids) => act("POST", "/api/payouts/decide", { ids, decision: "approved" }),
+      rejectPayouts: (ids) => act("POST", "/api/payouts/decide", { ids, decision: "rejected" }),
+      retryTransaction: (id) => act("POST", `/api/transactions/${encodeURIComponent(id)}/retry`),
       workerById: (id) => state.workers.find((w) => w.id === id),
       applySnapshot: (snapshot) => dispatch({ type: "replace", snapshot }),
       flush: async () => {

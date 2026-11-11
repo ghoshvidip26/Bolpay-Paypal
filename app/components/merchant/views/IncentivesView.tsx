@@ -1,19 +1,20 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { usePeriodPay, useStore } from "@/app/lib/merchant/store";
 import { formatMoney } from "@/app/lib/merchant/format";
 import type { DeliveryTier, IncentiveRules } from "@/app/lib/merchant/types";
-import { Avatar, Badge, Button, Card, Field, inputClass, PageHeader, StatCard, td, th } from "../ui";
+import { useToast } from "../../feedback/Toaster";
+import { Avatar, Badge, Button, Card, Field, fieldClass, inputClass, PageHeader, Stat, Stats, td, th, thRight } from "../ui";
 
 export function IncentivesView() {
   const { rules, setRules, period, payouts, submitPeriodForApproval } = useStore();
   const rows = usePeriodPay();
+  const toast = useToast();
   const [draft, setDraft] = useState<Record<keyof IncentiveRules, string>>(
     () => Object.fromEntries(Object.entries(rules).map(([k, v]) => [k, String(v)])) as Record<keyof IncentiveRules, string>,
   );
-  const [notice, setNotice] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [tiers, setTiers] = useState<DeliveryTier[]>(rules.deliveryTiers);
   const tiersDirty = JSON.stringify(tiers) !== JSON.stringify(rules.deliveryTiers);
 
@@ -46,59 +47,58 @@ export function IncentivesView() {
         title="Incentives & payout summary"
         description={`Calculated live from attendance for ${period.label}.`}
         actions={
-          <Button variant="primary" disabled={toSubmit === 0} onClick={async () => {
+          <Button variant="primary" disabled={toSubmit === 0 || submitting} onClick={async () => {
+            setSubmitting(true);
             const r = await submitPeriodForApproval();
-            const parts = [];
-            if (r.created > 0) parts.push(`${r.created} payout${r.created === 1 ? "" : "s"} submitted for approval`);
-            if (r.needsReview > 0) parts.push(`${r.needsReview} flagged Needs Review (missing or conflicting records)`);
-            if (parts.length) setNotice(`${parts.join("; ")}.`);
+            setSubmitting(false);
+            if (r.created === 0 && r.needsReview === 0) return;
+            const review = r.needsReview > 0 ? `${r.needsReview} flagged for review because of missing or conflicting records.` : undefined;
+            toast({
+              tone: r.needsReview > 0 ? "warn" : "success",
+              title: r.created > 0 ? `${r.created} payout${r.created === 1 ? "" : "s"} sent for approval` : "Nothing new to approve",
+              description: review,
+              action: { label: "Go to approvals", href: "/payouts" },
+            });
           }}>
-            Submit {toSubmit} for approval
+            {submitting ? "Submitting…" : `Submit ${toSubmit} for approval`}
           </Button>
         }
       />
 
-      {notice && (
-        <div role="status" className="mb-4 flex items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800">
-          {notice}
-          <Link href="/payouts" className="font-medium underline">Go to approvals</Link>
-        </div>
-      )}
+      <Stats className="mb-5">
+        <Stat label="Base pay" value={formatMoney(totals.base)} hint={`${rows.length} worker${rows.length === 1 ? "" : "s"}`} />
+        <Stat label="Overtime and incentives" value={formatMoney(totals.incentives)} hint={totals.total ? `${Math.round((totals.incentives / totals.total) * 100)}% of total` : undefined} />
+        <Stat label="Total payout" value={formatMoney(totals.total)} hint={period.label} />
+      </Stats>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 sm:grid-cols-3">
-        <StatCard label="Base pay" value={formatMoney(totals.base)} />
-        <StatCard label="Overtime + incentives" value={formatMoney(totals.incentives)} tone="good" />
-        <StatCard label="Total payout" value={formatMoney(totals.total)} />
-      </div>
-
-      <Card title="Payout summary" className="mb-6" flush>
+      <Card title="Payout summary" className="mb-5" flush>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[940px]">
             <thead>
               <tr>
                 <th className={th}>Worker</th>
-                <th className={`${th} text-right`}>Days paid</th>
-                <th className={`${th} text-right`}>Base</th>
-                <th className={`${th} text-right`}>Overtime</th>
-                <th className={`${th} text-right`}>Performance</th>
-                <th className={`${th} text-right`}>Delivery tiers</th>
-                <th className={`${th} text-right`}>Attendance bonus</th>
-                <th className={`${th} text-right`}>Total</th>
+                <th className={thRight}>Days paid</th>
+                <th className={thRight}>Base</th>
+                <th className={thRight}>Overtime</th>
+                <th className={thRight}>Performance</th>
+                <th className={thRight}>Delivery tiers</th>
+                <th className={thRight}>Attendance bonus</th>
+                <th className={thRight}>Total</th>
                 <th className={th}>Status</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {rows.map(({ worker, pay }) => (
                 <tr key={worker.id}>
-                  <td className={td}><div className="flex items-center gap-3"><Avatar name={worker.name} /><div><p className="font-medium text-slate-900">{worker.name}</p><p className="text-xs text-slate-500">{Math.round(pay.attendanceRate * 100)}% attendance</p></div></div></td>
+                  <td className={td}><div className="flex items-center gap-2.5"><Avatar name={worker.name} /><div><p className="font-medium text-slate-900">{worker.name}</p><p className="text-xs text-slate-500">{Math.round(pay.attendanceRate * 100)}% attendance</p></div></div></td>
                   <td className={`${td} text-right tabular-nums`}>{pay.payDays} / {pay.periodDays}</td>
                   <td className={`${td} text-right tabular-nums`}>{formatMoney(pay.basePay)}</td>
                   <td className={`${td} text-right tabular-nums`} title={`${pay.overtimeHours}h overtime`}>{formatMoney(pay.overtimePay)}</td>
                   <td className={`${td} text-right tabular-nums`} title={`${pay.extraUnits} units above target`}>{formatMoney(pay.performanceIncentive)}</td>
                   <td className={`${td} text-right tabular-nums`}>{formatMoney(pay.tierBonus ?? 0)}</td>
-                  <td className={`${td} text-right tabular-nums`}>{pay.attendanceBonus ? formatMoney(pay.attendanceBonus) : "—"}</td>
+                  <td className={`${td} text-right tabular-nums`}>{pay.attendanceBonus ? formatMoney(pay.attendanceBonus) : <span className="text-slate-400">{formatMoney(0)}</span>}</td>
                   <td className={`${td} text-right font-semibold tabular-nums text-slate-900`}>{formatMoney(pay.total)}</td>
-                  <td className={td}>{submitted.has(worker.id) ? <Badge tone="blue">Submitted</Badge> : stateOf(worker.id) === "rejected" ? <Badge tone="red">Rejected · can resubmit</Badge> : stateOf(worker.id) === "needs_review" ? <Badge tone="amber">Needs review</Badge> : <Badge>Draft</Badge>}</td>
+                  <td className={td}>{submitted.has(worker.id) ? <Badge tone="blue">Submitted</Badge> : stateOf(worker.id) === "rejected" ? <Badge tone="red">Rejected, can resubmit</Badge> : stateOf(worker.id) === "needs_review" ? <Badge tone="amber">Needs review</Badge> : <Badge>Draft</Badge>}</td>
                 </tr>
               ))}
             </tbody>
@@ -110,8 +110,11 @@ export function IncentivesView() {
         title="Incentive rules"
         actions={
           <div className="flex gap-2">
-            <Button variant="ghost" disabled={!dirty} onClick={() => { setDraft(Object.fromEntries(Object.entries(rules).map(([k, v]) => [k, String(v)])) as Record<keyof IncentiveRules, string>); setTiers(rules.deliveryTiers); }}>Reset</Button>
-            <Button variant="primary" disabled={!dirty || !valid} onClick={() => setRules({ ...(Object.fromEntries(NUM_KEYS.map((k) => [k, Number(draft[k])])) as unknown as IncentiveRules), deliveryTiers: tiers, version: rules.version })}>Apply</Button>
+            <Button variant="ghost" size="sm" disabled={!dirty} onClick={() => { setDraft(Object.fromEntries(Object.entries(rules).map(([k, v]) => [k, String(v)])) as Record<keyof IncentiveRules, string>); setTiers(rules.deliveryTiers); }}>Reset</Button>
+            <Button variant="primary" size="sm" disabled={!dirty || !valid} onClick={() => {
+              setRules({ ...(Object.fromEntries(NUM_KEYS.map((k) => [k, Number(draft[k])])) as unknown as IncentiveRules), deliveryTiers: tiers, version: rules.version });
+              toast({ tone: "success", title: "Incentive rules applied", description: "The payout summary has been recalculated." });
+            }}>Apply</Button>
           </div>
         }
       >
@@ -123,23 +126,26 @@ export function IncentivesView() {
           {field("attendanceThreshold", "Attendance bonus threshold (0–1)", "0.01")}
           {field("attendanceBonus", "Attendance bonus (₹)")}
         </div>
-        <div className="mt-6">
-          <p className="mb-2 text-sm font-medium text-slate-700">Daily delivery tiers <span className="font-normal text-slate-500">(highest tier reached each day is paid once)</span></p>
+        <div className="mt-5 border-t border-slate-200 pt-4">
+          <p className="text-sm font-medium text-slate-700">Daily delivery tiers</p>
+          <p className="mb-3 text-xs text-slate-500">The highest tier a worker reaches each day is paid once.</p>
           <div className="space-y-2">
             {tiers.map((t, i) => (
-              <div key={i} className="flex flex-wrap items-center gap-2 text-sm">
+              <div key={i} className="flex flex-wrap items-center gap-2 text-sm text-slate-600">
+                <span className="w-14 text-xs font-medium text-slate-500">Tier {i + 1}</span>
                 <span>At least</span>
-                <input aria-label={`Tier ${i + 1} deliveries`} className={`${inputClass} w-20`} type="number" min="1" value={t.minUnits} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, minUnits: Number(e.target.value) } : x)))} />
-                <span>deliveries →  ₹</span>
-                <input aria-label={`Tier ${i + 1} bonus`} className={`${inputClass} w-24`} type="number" min="0" value={t.bonus} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, bonus: Number(e.target.value) } : x)))} />
-                <Button variant="ghost" onClick={() => setTiers(tiers.filter((_, j) => j !== i))}>Remove</Button>
+                <input aria-label={`Tier ${i + 1} deliveries`} className={fieldClass("h-7 w-20 px-2 text-sm tabular-nums")} type="number" min="1" value={t.minUnits} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, minUnits: Number(e.target.value) } : x)))} />
+                <span>deliveries pays ₹</span>
+                <input aria-label={`Tier ${i + 1} bonus`} className={fieldClass("h-7 w-24 px-2 text-sm tabular-nums")} type="number" min="0" value={t.bonus} onChange={(e) => setTiers(tiers.map((x, j) => (j === i ? { ...x, bonus: Number(e.target.value) } : x)))} />
+                <Button variant="ghost" size="sm" onClick={() => setTiers(tiers.filter((_, j) => j !== i))}>Remove</Button>
               </div>
             ))}
-            <Button variant="ghost" onClick={() => setTiers([...tiers, { minUnits: (tiers.at(-1)?.minUnits ?? 0) + 10, bonus: 0 }])}>Add tier</Button>
+            <Button size="sm" onClick={() => setTiers([...tiers, { minUnits: (tiers.at(-1)?.minUnits ?? 0) + 10, bonus: 0 }])}>Add tier</Button>
           </div>
-          <p className="mt-2 text-xs text-slate-500">Rules version v{rules.version}. Every payout stores the version it was calculated with.</p>
         </div>
-        <p className="mt-4 text-xs text-slate-500">Rule changes recalculate the table above immediately. Payouts already submitted keep the amounts they were submitted with.</p>
+        <p className="mt-5 border-t border-slate-200 pt-3 text-xs text-slate-500">
+          Rules version v{rules.version}. Changes recalculate the summary above immediately. Payouts already submitted keep the amounts and rules version they were submitted with.
+        </p>
       </Card>
     </>
   );

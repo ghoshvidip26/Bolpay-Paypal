@@ -2,41 +2,43 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { IconApprove, IconAttendance, IconLedger, IconOverview, IconSettings, IconTiers, IconWorkers } from "../icons";
 
 type Role = "owner" | "supervisor";
 
 const OWNER_ONLY = new Set(["/incentives", "/payouts", "/transactions"]);
 
 const NAV = [
-  { href: "/dashboard", label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10" },
-  { href: "/workers", label: "Workers", icon: "M16 11a4 4 0 10-8 0 4 4 0 008 0zM4 21a8 8 0 0116 0" },
-  { href: "/attendance", label: "Attendance", icon: "M8 2v4M16 2v4M3 9h18M5 5h14a2 2 0 012 2v13a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2zM9 15l2 2 4-4" },
-  { href: "/incentives", label: "Incentives", icon: "M12 2l3 7h7l-5.5 4.5L18.5 21 12 17l-6.5 4 2-7.5L2 9h7z" },
-  { href: "/payouts", label: "Payout approvals", icon: "M5 13l4 4L19 7" },
-  { href: "/transactions", label: "Transactions", icon: "M7 7h13l-3-3M17 17H4l3 3" },
+  { href: "/dashboard", label: "Dashboard", Icon: IconOverview },
+  { href: "/workers", label: "Workers", Icon: IconWorkers },
+  { href: "/attendance", label: "Attendance", Icon: IconAttendance },
+  { href: "/incentives", label: "Incentives", Icon: IconTiers },
+  { href: "/payouts", label: "Payout approvals", Icon: IconApprove },
+  { href: "/transactions", label: "Transactions", Icon: IconLedger },
+  { href: "/settings", label: "Settings", Icon: IconSettings },
 ];
 
 export function Sidebar({ role, pendingCount }: { role: Role; pendingCount: number }) {
   const pathname = usePathname();
   return (
-    <nav aria-label="Main" className="flex gap-1 overflow-x-auto md:flex-col">
-      {NAV.filter((item) => role === "owner" || !OWNER_ONLY.has(item.href)).map((item) => {
-        const active = pathname === item.href;
+    <nav aria-label="Main" className="flex gap-0.5 overflow-x-auto md:flex-col">
+      {NAV.filter((item) => role === "owner" || !OWNER_ONLY.has(item.href)).map(({ href, label, Icon }) => {
+        const active = pathname === href;
         return (
           <Link
-            key={item.href}
-            href={item.href}
+            key={href}
+            href={href}
             aria-current={active ? "page" : undefined}
-            className={`flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-              active ? "bg-teal-50 text-teal-800" : "text-slate-600 hover:bg-slate-100"
+            className={`flex shrink-0 items-center gap-2.5 rounded-md px-2.5 py-1.5 text-sm transition-colors ${
+              active ? "bg-slate-100 font-medium text-slate-900" : "text-slate-600 hover:bg-slate-50 hover:text-slate-900"
             }`}
           >
-            <svg viewBox="0 0 24 24" className="size-[18px]" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
-              <path d={item.icon} />
-            </svg>
-            {item.label}
-            {item.href === "/payouts" && pendingCount > 0 && (
-              <span className="ml-auto rounded-full bg-amber-100 px-1.5 text-xs font-semibold text-amber-800">{pendingCount}</span>
+            <Icon className={`size-4 ${active ? "text-teal-700" : "text-slate-400"}`} />
+            {label}
+            {href === "/payouts" && pendingCount > 0 && (
+              <span className="ml-auto rounded border border-slate-200 bg-white px-1.5 text-[10px] font-semibold leading-4 text-slate-700 tabular-nums" aria-label={`${pendingCount} waiting`}>
+                {pendingCount}
+              </span>
             )}
           </Link>
         );
