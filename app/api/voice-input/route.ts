@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { transcribeAudio } from "@/app/lib/elevanlabs/client";
+import { guard, STAFF } from "@/app/lib/server/http";
 
 const MAX_BYTES = 10 * 1024 * 1024;
 
@@ -11,6 +12,8 @@ const MAX_BYTES = 10 * 1024 * 1024;
  * Returns `{ text }`.
  */
 export async function POST(req: Request) {
+  const denied = await guard(STAFF);
+  if (denied) return denied;
   if (!process.env.ELEVEN_LABS_API_KEY) {
     return NextResponse.json({ error: "Speech-to-text is not configured." }, { status: 503 });
   }

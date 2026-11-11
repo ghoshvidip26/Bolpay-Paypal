@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createPayPalOrder } from "@/app/lib/paypal/order";
+import { guard, STAFF } from "@/app/lib/server/http";
 
 /**
  * POST /api/paypal
@@ -7,6 +8,8 @@ import { createPayPalOrder } from "@/app/lib/paypal/order";
  * Creates a PayPal order (intent CAPTURE) and returns its id for the client SDK to approve.
  */
 export async function POST(req: Request) {
+  const denied = await guard(STAFF);
+  if (denied) return denied;
     let body: { order_price?: unknown; user_id?: unknown };
     try {
         body = await req.json();

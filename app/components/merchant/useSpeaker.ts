@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
 
-const MUTE_KEY = "paycrew.voiceReplies";
+const MUTE_KEY = "bolpay.voiceReplies";
 
 // Voice-reply preference lives in localStorage; useSyncExternalStore keeps it hydration-safe.
 const listeners = new Set<() => void>();

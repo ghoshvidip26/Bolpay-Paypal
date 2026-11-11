@@ -1,5 +1,6 @@
 import { connection, NextResponse } from "next/server";
 import { synthesizeSpeech } from "@/app/lib/elevanlabs/client";
+import { guard, STAFF } from "@/app/lib/server/http";
 
 const MAX_CHARS = 400;
 
@@ -9,6 +10,8 @@ const MAX_CHARS = 400;
  * Callers should only send reply text, never recipient details (emails, bank info).
  */
 export async function POST(req: Request) {
+  const denied = await guard(STAFF);
+  if (denied) return denied;
   await connection();
   if (!process.env.ELEVEN_LABS_API_KEY) {
     return NextResponse.json({ error: "Text-to-speech is not configured." }, { status: 503 });

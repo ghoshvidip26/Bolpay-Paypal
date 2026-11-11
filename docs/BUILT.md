@@ -96,7 +96,6 @@ Full details in [VOICE.md](./VOICE.md).
 - The voice assistant needs the Groq model; Groq's free tier allows 8,000 tokens per minute per model, so a burst of turns can wait or fall back to the smaller model.
 - A flow cannot name a worker that an earlier step in the same sentence creates.
 - "Today" and the pay period are fixed constants (3 Nov 2026, 21 Oct to 3 Nov).
-- The UI and PayPal email still say "PayCrew".
 - Legacy single-intent code (`/api/intent`, `voice-commands.ts`) is still in the repo.
 
 ## 10. Environment

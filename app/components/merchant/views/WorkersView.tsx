@@ -2,6 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useStore } from "@/app/lib/merchant/store";
+import { useViewer } from "../viewer";
 import { formatDate, formatMoney } from "@/app/lib/merchant/format";
 import { Avatar, Button, Card, EmptyState, Field, inputClass, PageHeader, StatusBadge, td, th } from "../ui";
 
@@ -9,6 +10,7 @@ const EMPTY = { name: "", role: "Delivery Rider", city: "Bengaluru", phone: "", 
 
 export function WorkersView() {
   const { workers, addWorker, updateWorker, importCsv } = useStore();
+  const { isOwner } = useViewer();
   const [city, setCity] = useState("all");
   const [importMsg, setImportMsg] = useState<string | null>(null);
   const workersFile = useRef<HTMLInputElement>(null);
@@ -44,9 +46,9 @@ export function WorkersView() {
     <>
       <PageHeader
         title="Workers"
-        description="Manage your team, daily wages and payout accounts."
+        description={isOwner ? "Manage your team, daily wages and payout accounts." : "Your team. Only the owner can change wages or payout accounts."}
         actions={
-          <div className="flex flex-wrap gap-2">
+          isOwner && <div className="flex flex-wrap gap-2">
             <input ref={workersFile} type="file" accept=".csv,text/csv" hidden onChange={(e) => void onFile("workers", e.target.files?.[0])} />
             <input ref={deliveriesFile} type="file" accept=".csv,text/csv" hidden onChange={(e) => void onFile("deliveries", e.target.files?.[0])} />
             <Button onClick={() => workersFile.current?.click()} title="Columns: name, role, city, phone, payoutEmail, dailyWage">Import workers CSV</Button>
@@ -99,7 +101,7 @@ export function WorkersView() {
                     <td className={td}>{w.role}</td>
                     <td className={td}>{w.city}</td>
                     <td className={`${td} tabular-nums`}>
-                      {editing === w.id ? (
+                      {!isOwner ? formatMoney(w.dailyWage) : editing === w.id ? (
                         <form className="flex items-center gap-1" onSubmit={(e) => {
                           e.preventDefault();
                           if (Number(wageDraft) > 0) updateWorker(w.id, { dailyWage: Number(wageDraft) });
@@ -116,9 +118,11 @@ export function WorkersView() {
                     <td className={td}>{formatDate(w.joinedOn)}</td>
                     <td className={td}><StatusBadge status={w.status} /></td>
                     <td className={`${td} text-right`}>
-                      <Button variant="ghost" onClick={() => updateWorker(w.id, { status: w.status === "active" ? "inactive" : "active" })}>
-                        {w.status === "active" ? "Deactivate" : "Reactivate"}
-                      </Button>
+                      {isOwner && (
+                        <Button variant="ghost" onClick={() => updateWorker(w.id, { status: w.status === "active" ? "inactive" : "active" })}>
+                          {w.status === "active" ? "Deactivate" : "Reactivate"}
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}

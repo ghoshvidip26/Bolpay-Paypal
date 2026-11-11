@@ -75,6 +75,26 @@ function parse(content: string): PlannerOutput {
   };
 }
 
+/** Language implied by the writing system, for scripts used by a single main language here. */
+const SCRIPTS: [RegExp, string][] = [
+  [/[ऀ-ॿ]/g, "hi"], // Devanagari
+  [/[ಀ-೿]/g, "kn"], // Kannada
+  [/[஀-௿]/g, "ta"], // Tamil
+  [/[ঀ-৿]/g, "bn"], // Bengali
+];
+
+/**
+ * The model sometimes labels non-Latin text as "en". When most letters are in one of these
+ * scripts and the model said English, trust the script. Romanized Hinglish stays "en".
+ */
+export function languageFor(text: string, modelLanguage: string): string {
+  if (modelLanguage !== "en") return modelLanguage;
+  const letters = (text.match(/\p{L}/gu) ?? []).length;
+  if (!letters) return modelLanguage;
+  for (const [re, code] of SCRIPTS) if ((text.match(re) ?? []).length / letters > 0.5) return code;
+  return modelLanguage;
+}
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Planner models in order of preference. Override with VOICE_PLANNER_MODELS (comma separated). */
@@ -120,7 +140,10 @@ export async function planTurn(text: string, pending: PendingQuestion | null): P
     calls++;
     return chat([{ role: "system", content: system }, ...history], mode);
   };
-  const done = (content: string): PlanResult => ({ ...parse(content), latencyMs: Date.now() - started, calls, model: lastModel });
+  const done = (content: string): PlanResult => {
+    const out = parse(content);
+    return { ...out, language: languageFor(text, out.language), latencyMs: Date.now() - started, calls, model: lastModel };
+  };
 
   let content: string;
   try {

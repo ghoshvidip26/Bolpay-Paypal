@@ -358,7 +358,7 @@ async function submitToPayPal(txIds: string[]) {
     const attempt = Math.max(...chunk.map((c) => c.tx.attempt ?? 1));
     // Same payouts + same attempt = same id, so PayPal dedupes a repeated submission.
     const digest = createHash("sha256").update((db.batchSalt ?? "") + chunk.map((c) => c.tx.payoutId).sort().join("|")).digest("hex").slice(0, 32);
-    const senderBatchId = `paycrew-${digest}-${attempt}`;
+    const senderBatchId = `bolpay-${digest}-${attempt}`;
     try {
       const { batchId } = await createPayoutBatch({
         senderBatchId,

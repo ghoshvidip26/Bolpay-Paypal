@@ -14,7 +14,7 @@ AGENTS.md warns that this Next.js version (16.x, React 19) has breaking changes:
 
 ## What this is
 
-Bolpay ("PayCrew" in some strings) — a hackathon app for merchants to manage hourly/daily workers: attendance, incentive rules, payroll approval, and PayPal payouts, with a voice assistant (speak a command, get a spoken reply). Single Next.js App Router app; imports use the `@/app/...` alias.
+BolPay — a hackathon app for merchants to manage hourly/daily workers: attendance, incentive rules, payroll approval, and PayPal payouts, with a voice assistant (speak a command, get a spoken reply). Single Next.js App Router app; imports use the `@/app/...` alias.
 
 ## Architecture
 

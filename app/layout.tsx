@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PayCrew",
-  description: "Attendance, incentives and payouts for your crew.",
+  title: "BolPay",
+  description: "Speak. Approve. Pay. Voice-first payroll with PayPal payouts.",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

@@ -52,7 +52,7 @@ export async function createPayoutBatch(args: {
     body: {
       sender_batch_header: {
         sender_batch_id: args.senderBatchId,
-        email_subject: "You have a payout from PayCrew",
+        email_subject: "You have a payout from BolPay",
         email_message: "Your incentive payout has been sent.",
       },
       items: args.items.map((i) => ({

@@ -1,6 +1,17 @@
 # What is remaining
 
-Updated 2026-11-07. Compares the code ([BUILT.md](./BUILT.md)) with the [PRD](./PRD.md) and the Devpost requirements.
+Updated 2026-11-07. **Status update 2026-11-11** (see the list just below).
+
+**Done on 2026-11-11:**
+- **A-01** Login with Supabase Auth (owner, supervisor, worker demo logins); every `/api/*` route needs a session (401 otherwise); the webhook stays open and signature-verified.
+- **A-02** Role guard: approve/reject, retry, sync, import, workers, rules and voice metrics are owner-only (403). The voice assistant refuses owner-only steps for supervisors.
+- **D-07** Worker self-service page `/me` (own attendance, earnings, payment history).
+- **U-01 / T-01** PayCrew renamed to BolPay everywhere, including the PayPal email subject and `sender_batch_id` prefix.
+- **S-01** MIT LICENSE added (change it if the team prefers Apache-2.0).
+- **B-01** Decision: app data stays in the JSON file for the hackathon (Option A); Supabase holds logins and roles. A relational Supabase schema with row-level security exists in `supabase/migrations/` for a later move.
+- **T-07 / T-08** `next build` and lint pass.
+- Voice eval: 40/40 (Hindi-script commands are now tagged `hi` from the script, not only the model).
+ Compares the code ([BUILT.md](./BUILT.md)) with the [PRD](./PRD.md) and the Devpost requirements.
 **Deadline: 13 Nov 2026, 1:30 AM IST** (12 Nov, 12:00 PM Pacific). Plan to submit by the evening of 12 Nov IST.
 
 Priority: **P0** = required to submit or to run the demo, **P1** = should have for a credible product, **P2** = nice to have.

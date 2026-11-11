@@ -3,6 +3,10 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+type Role = "owner" | "supervisor";
+
+const OWNER_ONLY = new Set(["/incentives", "/payouts", "/transactions"]);
+
 const NAV = [
   { href: "/dashboard", label: "Dashboard", icon: "M3 12l9-9 9 9M5 10v10h5v-6h4v6h5V10" },
   { href: "/workers", label: "Workers", icon: "M16 11a4 4 0 10-8 0 4 4 0 008 0zM4 21a8 8 0 0116 0" },
@@ -12,11 +16,11 @@ const NAV = [
   { href: "/transactions", label: "Transactions", icon: "M7 7h13l-3-3M17 17H4l3 3" },
 ];
 
-export function Sidebar({ pendingCount }: { pendingCount: number }) {
+export function Sidebar({ role, pendingCount }: { role: Role; pendingCount: number }) {
   const pathname = usePathname();
   return (
     <nav aria-label="Main" className="flex gap-1 overflow-x-auto md:flex-col">
-      {NAV.map((item) => {
+      {NAV.filter((item) => role === "owner" || !OWNER_ONLY.has(item.href)).map((item) => {
         const active = pathname === item.href;
         return (
           <Link

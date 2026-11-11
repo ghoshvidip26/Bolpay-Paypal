@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { IntentModelError } from "@/app/lib/ai/intent";
 import { translateReply } from "@/app/lib/ai/translate";
 import { logAudit } from "@/app/lib/server/db";
-import { describePreview, previewMoney, runPlan, type StepOutcome } from "./executor";
+import { describePreview, previewMoney, runPlan, type StepOutcome, type VoiceRole } from "./executor";
 import { recordTurn } from "./metrics";
 import { classifyReply, fastClassify, planTurn, type PendingQuestion } from "./planner";
 import { resolveSteps } from "./resolver";
@@ -15,6 +15,8 @@ const PLAN_TTL_MS = 10 * 60_000;
 interface Session {
   id: string;
   dryRun: boolean;
+  /** Role of the signed-in caller, refreshed from the verified session on every turn. */
+  role: VoiceRole;
   state: SessionState;
   language: string;
   /** While clarifying: the request so far and the question that was asked. */
@@ -44,7 +46,7 @@ function getSession(id: string | null | undefined, dryRun: boolean): Session {
     existing.updatedAt = now;
     return existing;
   }
-  const s: Session = { id: randomUUID(), dryRun, state: "idle", language: "en", cursor: 0, outcomes: {}, updatedAt: now };
+  const s: Session = { id: randomUUID(), dryRun, role: "supervisor", state: "idle", language: "en", cursor: 0, outcomes: {}, updatedAt: now };
   map.set(s.id, s);
   return s;
 }
@@ -124,7 +126,7 @@ async function present(s: Session, steps: ResolvedStep[], note: string, base: { 
     s.plan = steps;
     s.cursor = 0;
     s.outcomes = {};
-    const run = await runPlan(steps, 0, s.dryRun);
+    const run = await runPlan(steps, 0, s.dryRun, s.role);
     s.outcomes = run.outcomes;
     s.cursor = run.cursor;
     const msgs = steps.map((_, i) => run.outcomes[i]?.message).filter(Boolean) as string[];
@@ -178,7 +180,7 @@ async function doConfirm(s: Session, base: { llmMs: number; fastPath: boolean })
     return finish(s, { outcome: "rejected", speech: "That plan has expired. Please say it again.", lines: [], awaiting: null });
   }
 
-  const run = await runPlan(plan, s.cursor, s.dryRun);
+  const run = await runPlan(plan, s.cursor, s.dryRun, s.role);
   s.outcomes = { ...s.outcomes, ...run.outcomes };
 
   if (run.checkpoint) {
@@ -222,6 +224,8 @@ export interface TurnInput {
   reset?: boolean;
   /** Button presses: same effect as saying confirm or cancel. */
   action?: "confirm" | "cancel";
+  /** From the verified session; decides which steps may run. */
+  role?: VoiceRole;
 }
 
 export function peekSession(id: string): TurnView | null {
@@ -245,6 +249,7 @@ async function handleTurnInner(input: TurnInput): Promise<TurnView> {
   if (input.reset && input.sessionId) sessions().delete(input.sessionId);
   const s = getSession(input.reset ? null : input.sessionId, input.dryRun === true);
   if (input.dryRun !== undefined && !input.sessionId) s.dryRun = input.dryRun === true;
+  s.role = input.role ?? "supervisor";
   if (input.reset) return finish(s, { outcome: "cancelled", speech: "Okay, starting fresh.", lines: [], awaiting: null });
 
   if (input.action === "confirm") return doConfirm(s, { llmMs: 0, fastPath: true });

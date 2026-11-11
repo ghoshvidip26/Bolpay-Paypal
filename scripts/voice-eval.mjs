@@ -7,11 +7,14 @@
  *   npm run test:voice -- hindi        only cases whose name contains "hindi"
  *   BASE_URL=http://localhost:3001 npm run test:voice
  *
- * Needs GROQ_API_KEY in the server's .env (the planner calls the model).
+ * Needs GROQ_API_KEY in the server's .env (the planner calls the model). The API needs a login, so the
+ * script signs in as the demo owner (override with EVAL_EMAIL / EVAL_PASSWORD) using the Supabase keys
+ * from .env.local.
  */
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { createRequire } from "node:module";
 
 const BASE = process.env.BASE_URL ?? "http://localhost:3000";
 const PAUSE_MS = Number(process.env.EVAL_PAUSE_MS ?? 1200);
@@ -20,12 +23,31 @@ const { cases } = JSON.parse(readFileSync(join(here, "voice-eval.cases.json"), "
 const filter = process.argv.slice(2).join(" ").toLowerCase();
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/** Signs in with Supabase and returns the auth cookie header the app expects. */
+async function login() {
+  const { createServerClient } = createRequire(import.meta.url)("@supabase/ssr");
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
+  if (!url || !key) throw new Error("Set NEXT_PUBLIC_SUPABASE_URL and NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY (.env.local).");
+  const jar = new Map();
+  const sb = createServerClient(url, key, {
+    cookies: { getAll: () => [...jar].map(([name, value]) => ({ name, value })), setAll: (cs) => cs.forEach((c) => jar.set(c.name, c.value)) },
+  });
+  const { error } = await sb.auth.signInWithPassword({
+    email: process.env.EVAL_EMAIL ?? "owner@demo.bolpay.app",
+    password: process.env.EVAL_PASSWORD ?? "BolPayDemo#2026",
+  });
+  if (error) throw new Error(`Eval login failed: ${error.message}`);
+  return [...jar].map(([n, v]) => `${n}=${v}`).join("; ");
+}
+const cookie = await login();
+
 async function turn(sessionId, t) {
   const body = { sessionId, dryRun: true };
   if (t.say) body.text = t.say;
   if (t.action) body.action = t.action;
   const started = Date.now();
-  const res = await fetch(`${BASE}/api/voice/turn`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+  const res = await fetch(`${BASE}/api/voice/turn`, { method: "POST", headers: { "Content-Type": "application/json", cookie }, body: JSON.stringify(body) });
   if (!res.ok) throw new Error(`HTTP ${res.status}`);
   const view = await res.json();
   view.ms = Date.now() - started;
@@ -51,7 +73,7 @@ function check(view, e) {
   return fails;
 }
 
-await fetch(`${BASE}/api/voice/metrics`, { method: "DELETE" }).catch(() => {});
+await fetch(`${BASE}/api/voice/metrics`, { method: "DELETE", headers: { cookie } }).catch(() => {});
 const selected = cases.filter((c) => !filter || c.name.toLowerCase().includes(filter));
 let passed = 0;
 const failures = [];
@@ -82,7 +104,7 @@ for (const c of selected) {
   }
 }
 
-const m = await fetch(`${BASE}/api/voice/metrics`).then((r) => r.json()).catch(() => null);
+const m = await fetch(`${BASE}/api/voice/metrics`, { headers: { cookie } }).then((r) => r.json()).catch(() => null);
 console.log(`\n${passed}/${selected.length} cases passed (${selected.length ? Math.round((passed / selected.length) * 100) : 0}%)`);
 if (m) {
   console.log(`turns ${m.turns} | model calls ${m.llm.calls} | model latency p50 ${m.llm.p50Ms} ms, p95 ${m.llm.p95Ms} ms`);

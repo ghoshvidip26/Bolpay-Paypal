@@ -7,13 +7,15 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test:voice": "node scripts/voice-eval.mjs"
+    "test:voice": "node --env-file-if-exists=.env.local scripts/voice-eval.mjs"
   },
   "dependencies": {
     "@elevenlabs/elevenlabs-js": "^2.75.0",
     "@elevenlabs/react": "^1.20.2",
     "@paypal/paypal-server-sdk": "^2.5.0",
     "@paypal/react-paypal-js": "^10.6.1",
+    "@supabase/ssr": "0.12.7",
+    "@supabase/supabase-js": "2.119.0",
     "i": "^0.3.7",
     "next": "16.4.3",
     "npm": "^12.2.1",

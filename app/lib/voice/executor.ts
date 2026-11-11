@@ -231,16 +231,29 @@ async function runStep(step: ResolvedStep, dryRun: boolean): Promise<StepOutcome
   return { ok: false, message: "That action isn't supported." };
 }
 
+export type VoiceRole = "owner" | "supervisor";
+
+/** Supervisors record the day's work and prepare payouts; everything else is owner-only. */
+const SUPERVISOR_ACTIONS = new Set(["mark_attendance", "record_overtime", "record_units", "prepare_payouts", "query", "navigate"]);
+
+export function allowedFor(role: VoiceRole, step: ResolvedStep) {
+  return role === "owner" || SUPERVISOR_ACTIONS.has(step.action);
+}
+
 /**
  * Runs steps top to bottom starting at `cursor`. Stops at the first failure, and pauses before any
  * money step whose exact figures the manager hasn't confirmed (or whose figures changed since).
  * With dryRun nothing is written and PayPal is never called.
  */
-export async function runPlan(steps: ResolvedStep[], cursor: number, dryRun: boolean): Promise<RunResult> {
+export async function runPlan(steps: ResolvedStep[], cursor: number, dryRun: boolean, role: VoiceRole = "supervisor"): Promise<RunResult> {
   const outcomes: Record<number, StepOutcome> = {};
   let navigate: string | undefined;
   for (let i = cursor; i < steps.length; i++) {
     const step = steps[i];
+    if (!allowedFor(role, step)) {
+      outcomes[i] = { ok: false, message: "Only the owner can do that. Ask the owner to approve it." };
+      return { outcomes, cursor: i + 1, navigate };
+    }
     if (step.risk === "money" && dryRun && steps.slice(0, i).some((x) => x.risk !== "read")) {
       // A dry run can't create the payouts an earlier step would, so say what a real run would do.
       outcomes[i] = { ok: true, message: "A real run would pause here and show the exact amount before sending any money." };

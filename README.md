@@ -27,6 +27,17 @@ cp .env.example .env     # then fill in the keys (instructions are in the file)
 npm run dev              # http://localhost:3000
 ```
 
+### Sign in (roles)
+Login uses Supabase Auth; set `NEXT_PUBLIC_SUPABASE_URL` and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` in `.env`. The demo logins (password `BolPayDemo#2026`, also one-click buttons on `/login`):
+
+| Login | Role | Can do |
+|---|---|---|
+| `owner@demo.bolpay.app` | Owner | Everything: workers, wages, rules, approve and send payouts |
+| `supervisor@demo.bolpay.app` | Supervisor | Mark attendance (also by voice), prepare payouts. Cannot approve or move money |
+| `ravi@demo.bolpay.app` | Worker (Ravi Kumar) | Only their own attendance, earnings and payment history (`/me`) |
+
+Every `/api/*` route checks the role on the server (the PayPal webhook is verified by signature instead), and the voice assistant refuses owner-only steps for a supervisor. To recreate the logins in a new Supabase project, apply `supabase/migrations/*.sql`, then run `supabase/seed.sql` in the SQL editor.
+
 ### PayPal sandbox setup
 1. At developer.paypal.com create a **US Business** sandbox account (Testing Tools → Sandbox Accounts). Business accounts from some countries, e.g. India, cannot send payouts.
 2. Create an app for it (Apps & Credentials), keep **Payouts** enabled, and copy the Client ID and Secret into `.env`.
@@ -43,4 +54,4 @@ npm run dev              # http://localhost:3000
 To reset the data, stop the server and delete the `.data` folder.
 
 ## Commands
-`npm run dev` · `npm run build` · `npm run start` · `npm run lint`
+`npm run dev` · `npm run build` · `npm run start` · `npm run lint` · `npm run test:voice` (needs the dev server running; signs in as the demo owner)

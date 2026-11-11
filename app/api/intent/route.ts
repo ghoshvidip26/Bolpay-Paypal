@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { IntentModelError } from "@/app/lib/ai/intent";
 import { planFromText } from "@/app/lib/server/intent-service";
 import type { IntentContext } from "@/app/lib/merchant/intent-types";
+import { guard, STAFF } from "@/app/lib/server/http";
 
 const MAX_TEXT = 500;
 
@@ -11,6 +12,8 @@ const MAX_TEXT = 500;
  * Returns { plan }, a validated action for the UI to confirm. Nothing is executed here.
  */
 export async function POST(req: Request) {
+  const denied = await guard(STAFF);
+  if (denied) return denied;
   await connection();
 
   let body: { text?: unknown; context?: { previousText?: unknown; question?: unknown } };

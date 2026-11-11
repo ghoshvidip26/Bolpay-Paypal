@@ -1,4 +1,4 @@
-import { respond, readJson } from "@/app/lib/server/http";
+import { respond, readJson, OWNER } from "@/app/lib/server/http";
 import { decidePayouts, ServiceError } from "@/app/lib/server/service";
 
 const MAX_IDS = 200;
@@ -15,5 +15,5 @@ export async function POST(req: Request) {
     if (ids.length === 0 || ids.length > MAX_IDS) throw new ServiceError(`Provide between 1 and ${MAX_IDS} payout ids`);
     if (b.decision !== "approved" && b.decision !== "rejected") throw new ServiceError("decision must be approved or rejected");
     await decidePayouts(ids, b.decision);
-  });
+  }, OWNER);
 }

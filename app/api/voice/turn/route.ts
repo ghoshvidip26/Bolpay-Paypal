@@ -1,6 +1,17 @@
 import { connection, NextResponse } from "next/server";
 import { getSnapshot } from "@/app/lib/server/service";
 import { handleTurn, peekSession } from "@/app/lib/voice/session";
+import { requireApiRole, STAFF } from "@/app/lib/server/http";
+import { ServiceError } from "@/app/lib/server/service";
+
+async function staff() {
+  try {
+    return { session: await requireApiRole(STAFF) };
+  } catch (err) {
+    const e = err as ServiceError;
+    return { denied: NextResponse.json({ error: e.message }, { status: e.status }) };
+  }
+}
 
 const MAX_TEXT = 600;
 
@@ -12,6 +23,8 @@ const MAX_TEXT = 600;
  */
 export async function POST(req: Request) {
   await connection();
+  const auth = await staff();
+  if (auth.denied) return auth.denied;
   let body: Record<string, unknown>;
   try {
     body = (await req.json()) as Record<string, unknown>;
@@ -27,6 +40,7 @@ export async function POST(req: Request) {
     action,
     dryRun: body.dryRun === true,
     reset: body.reset === true,
+    role: auth.session.role === "owner" ? "owner" : "supervisor",
   });
   return NextResponse.json({ ...view, snapshot: getSnapshot() });
 }
@@ -34,6 +48,8 @@ export async function POST(req: Request) {
 /** GET ?sessionId=... restores the last turn view after a reload. */
 export async function GET(req: Request) {
   await connection();
+  const auth = await staff();
+  if (auth.denied) return auth.denied;
   const id = new URL(req.url).searchParams.get("sessionId");
   const view = id ? peekSession(id) : null;
   return view ? NextResponse.json(view) : NextResponse.json({ error: "No such session" }, { status: 404 });

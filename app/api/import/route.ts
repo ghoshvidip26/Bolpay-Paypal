@@ -1,4 +1,4 @@
-import { readJson, respond } from "@/app/lib/server/http";
+import { readJson, respond, OWNER } from "@/app/lib/server/http";
 import { importDeliveries, importWorkers, ServiceError } from "@/app/lib/server/service";
 
 const MAX_CSV_CHARS = 1_000_000;
@@ -16,5 +16,5 @@ export async function POST(req: Request) {
     if (b.kind === "workers") return { import: importWorkers(b.csv) };
     if (b.kind === "deliveries") return { import: importDeliveries(b.csv) };
     throw new ServiceError('kind must be "workers" or "deliveries"');
-  });
+  }, OWNER);
 }
