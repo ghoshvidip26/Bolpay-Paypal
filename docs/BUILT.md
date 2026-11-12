@@ -18,6 +18,9 @@ Updated 2026-11-12. PRD section numbers refer to [PRD.md](./PRD.md). What is lef
 | Zoho HRMS import (OAuth connect, employees, attendance, repeatable sync) | Built; verified against a stand-in serving your real exports; **not yet run against your live Zoho portal** |
 | Two separate datasets (Demo and Zoho HRMS) with a switch | Working |
 | UI kit, toasts, sounds, settings, login and legal pages | Working |
+| Attendance history in an AG Grid data grid (sort, filter, page, CSV export) | Working |
+| Demo video production kit (script, timed shot list, narration generator) | Ready: [DEMO_VIDEO.md](./DEMO_VIDEO.md) |
+| Hosted demo on Vercel | **Not deployed** (needs your Vercel login); steps and limits in [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) |
 | Database | JSON file (not Postgres) |
 
 ## 2. Verified against real services (sandbox)
@@ -33,7 +36,7 @@ Updated 2026-11-12. PRD section numbers refer to [PRD.md](./PRD.md). What is lef
 |---|---|
 | `/dashboard` | Period summary, stat cards, recent transactions |
 | `/workers` | List, search, city filter, add worker, inline wage edit, activate or deactivate, **import workers CSV**, **import deliveries CSV** |
-| `/attendance` | Per-day status buttons, overtime hours, units; "mark remaining present" |
+| `/attendance` | Per-day status buttons, overtime hours, units; "mark remaining present"; **attendance history** in an AG Grid grid below (click a date to open that day) |
 | `/incentives` | Live payout summary per worker (base, overtime, performance, delivery tiers, attendance bonus), rules editor with delivery tiers and rules version, submit for approval (shows how many are Needs Review) |
 | `/payouts` | **Needs review** card with reasons, awaiting approval with per-worker breakdown and rule version, bulk approve and reject with a confirmation, decision history |
 | `/transactions` | Status tabs (All, Processing, **Awaiting sign-up**, Completed, Failed), ₹ amount with the USD amount sent to PayPal, failure reasons, Retry, **Cancel and refund** for unclaimed payments, automatic status refresh every 4 s while anything is processing (every 60 s while payments only wait for a sign-up) |
@@ -109,7 +112,8 @@ Full details in [VOICE.md](./VOICE.md).
 - The voice assistant needs the Groq model; Groq's free tier allows 8,000 tokens per minute per model, so a burst of turns can wait or fall back to the smaller model.
 - A flow cannot name a worker that an earlier step in the same sentence creates.
 - The Demo dataset is pinned to fixed dates (3 Nov 2026, period 21 Oct to 3 Nov) so the trained demo always looks the same. The Zoho dataset uses the real date (India time) and the calendar month.
-- The active dataset is one global switch for the whole server, not per browser session.
+- The Zoho connection (tokens) is one record for the whole server, not per business.
+- On a host with a read-only project folder the JSON files must live in a writable folder (`DATA_DIR`, for example `/tmp`), which is wiped on cold starts; see [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md).
 - Legacy single-intent code (`/api/intent`, `voice-commands.ts`) is still in the repo.
 
 ## 10. Environment
@@ -124,7 +128,7 @@ Full details in [VOICE.md](./VOICE.md).
 ## 12. Zoho HRMS integration (added 2026-11-12)
 Lets a business that runs HR on Zoho People start paying through BolPay without re-keying people.
 
-**Two datasets.** The app now has two fully separate workspaces behind one switch in the sidebar (owner only): **Demo** (the trained 25-rider Bengaluru dataset, unchanged) and **Zoho HRMS** (starts empty, filled by a sync). Each has its own workers, attendance, payouts, transactions, rules and PayPal batch ids (`.data/db.json` and `.data/zoho.json`). Every screen, payout flow and the voice assistant work on whichever dataset is active, because everything reads through `getDb()`; "today" and the pay period come from `getToday()` and `getPeriod()` (`app/lib/server/context.ts`).
+**Two datasets.** The app now has two fully separate workspaces behind one switch in the sidebar (each person's own choice, kept in their own cookie, so switching never changes what anyone else sees): **Demo** (the trained 25-rider Bengaluru dataset, unchanged) and **Zoho HRMS** (starts empty, filled by a sync). Each has its own workers, attendance, payouts, transactions, rules and PayPal batch ids (`.data/db.json` and `.data/zoho.json`). Every screen, payout flow and the voice assistant work on whichever dataset is active, because everything reads through `getDb()`; "today" and the pay period come from `getToday()` and `getPeriod()` (`app/lib/server/context.ts`).
 
 **Connect.** The owner presses Connect Zoho on `/integrations`: OAuth 2.0 authorization-code flow against `accounts.zoho.in` with a one-time `state` cookie. Tokens are stored server-side in `.data/integrations.json` (never sent to the browser). A `ZOHO_REFRESH_TOKEN` in `.env` (Zoho "Self Client") works instead of the redirect flow.
 
@@ -148,3 +152,15 @@ Lets a business that runs HR on Zoho People start paying through BolPay without 
 - **No API for creating or deleting PayPal accounts.** PayPal exposes none for sandbox (dashboard and bulk CSV only), and a live account can never be created for someone else. In production the sign-up link PayPal emails is the supported route.
 - **Zoho emails.** Zoho returns an empty `EmailID` for the sample employees (the export's "Email address" is not on the employee form), so only employees whose profile has an email get one. A later sync now fills an *empty* PayPal email when Zoho gains one; an email you set is never overwritten.
 - **Screen stayed empty after Sync now.** The screens keep their data in memory and only loaded it once, so after a sync the Workers page still showed the old list until the page was reloaded. Sync now (and the sandbox-email button) now hands the fresh server data to the screens. Verified with a live sync from the screen: 20 employees updated, 0 duplicated, 150 attendance records.
+
+## 14. Final additions before submission (2026-11-12)
+- **Per-person dataset.** The Demo / Zoho HRMS choice is stored in each person's own cookie (`bolpay_dataset`) and applied to every request through `AsyncLocalStorage` (`runInWorkspace`, `withRequestWorkspace`). Outside a signed-in request (the worker page, the PayPal webhook) the demo data is used; the webhook searches every dataset. Owners and supervisors can switch; roles still decide what they may do.
+- **AG Grid attendance history.** AG Grid Community (MIT) data grid, themed to the app, paginated, sortable, filterable and exportable, loaded on demand (`next/dynamic`) because it is large. Enterprise features (Excel export, grouping, set filter) are deliberately not used.
+- **Clearer feedback.** Toasts for Zoho sync, disconnect, test emails, awaiting-sign-up payments and completed or failed payments. Cancelling an unclaimed payment now uses an inline two-step confirmation (with a warning sound) instead of a browser dialog.
+- **Hosting.** `DATA_DIR` moves the JSON files (and the Zoho token store) to a writable folder for hosts such as Vercel. A hosted deployment was **not** performed here; see [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) for the steps and the limits of `/tmp` storage.
+- **Demo video kit.** [DEMO_VIDEO.md](./DEMO_VIDEO.md) has the narration script, a timed shot list built from measured clip lengths, recording, ElevenLabs and editing steps, and ready-to-paste YouTube and Devpost text. `docs/demo-video/narration.json` holds the clips as data and `scripts/demo-narration.mjs` renders them. The narrator voice `sXcl1NoQHcU7NRh6Na5D` is an ElevenLabs library voice, which the API refuses on a free plan, so the final narration must be generated on the website (or after upgrading); the manager's voice-command clips were rendered with a premade voice.
+- **Checked for the video:** the three demo voice commands plan correctly against the real planner (dry run), the approve step pauses at the exact-amount checkpoint, and "Yes, go ahead" confirms by voice.
+
+## 15. State at submission
+**Working and verified:** voice-driven multi-step flows with exact-amount checkpoints (40 of 40 eval fixtures, plus real runs), PayPal sandbox payouts through to completed, unclaimed-payment handling, Needs Review safeguards, roles and sign-in, Zoho People import against a live portal (20 employees, 150 attendance records), two datasets with per-person switching.
+**Not verified or not done:** webhooks (need a public URL), cancel-and-refund on PayPal's sandbox (it returns an internal error), a real-microphone take (record it as part of the video), Kannada, Tamil and Bengali speech, a hosted deployment, and a production build run in this session (the team reported it passing). Open work is in [REMAINING.md](./REMAINING.md).

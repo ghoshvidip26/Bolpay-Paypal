@@ -480,7 +480,7 @@ proxy.ts                   session refresh and login redirect
 - Reconciliation between internal transactions and PayPal batch items.
 
 ## Docs
-[Product spec](docs/PRD.md) · [What's built](docs/BUILT.md) · [What's left](docs/REMAINING.md) · [Voice design and manual tests](docs/VOICE.md) · [Demo script](docs/DEMO.md)
+[Product spec](docs/PRD.md) · [What's built](docs/BUILT.md) · [What's left](docs/REMAINING.md) · [Voice design and manual tests](docs/VOICE.md) · [Demo script](docs/DEMO.md) · [Demo video script](docs/DEMO_VIDEO.md) · [Deploy on Vercel](docs/DEPLOY_VERCEL.md)
 
 ## License
 [MIT](LICENSE)

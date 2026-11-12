@@ -62,15 +62,16 @@ Size: **S** under 1 hour, **M** a few hours, **L** a day or more. Owners follow 
 | S-01 | P0 | S | Integration | **LICENSE file** in the repo root (team picks MIT or Apache-2.0); it must show in GitHub's About section. |
 | S-02 | P0 | S | Integration | **Make the repo public** and confirm it contains all source and assets and no secrets (`git log -p` search for keys; `.env` is ignored). |
 | S-03 | P0 | S | Integration | **README for judges:** a clean clone runs after `npm install`, `.env`, `npm run dev`. Include the PayPal sandbox setup and a "demo mode" note. Test on a second machine. |
-| S-04 | P0 | M | Integration | **Demo video**, under 3 minutes, on YouTube, public. Show the voice → plan → approve → PayPal → status flow on the device it was built for. No copyrighted music or third-party trademarks (check logos of PayPal, ElevenLabs, Groq on screen; use the sponsor naming only as text if unsure). |
+| S-04 | P0 | M | You | **Demo video:** script, timed shot list and steps are ready in [DEMO_VIDEO.md](./DEMO_VIDEO.md); record it, generate the narration in ElevenLabs (voice `sXcl1NoQHcU7NRh6Na5D` needs the website or a paid plan), edit, upload. Original requirement: **Demo video**, under 3 minutes, on YouTube, public. Show the voice → plan → approve → PayPal → status flow on the device it was built for. No copyrighted music or third-party trademarks (check logos of PayPal, ElevenLabs, Groq on screen; use the sponsor naming only as text if unsure). |
 | S-05 | P0 | M | Integration | **Devpost text description:** features, the problem, who it is for, how AI and PayPal are used, what was built during the hackathon vs before (the repo has commits from before the 1 Oct start; Devpost requires an explanation of significant changes). |
 | S-06 | P0 | S | Integration | **Functional demo requirement:** either a hosted URL or exact run instructions. Judges must be able to run it; put seeded data and sandbox credentials guidance in the README. |
 | S-07 | P0 | S | Integration | **Tools list:** ElevenLabs Scribe and TTS, Groq `gpt-oss-120b` and `gpt-oss-20b`, PayPal Payouts REST API, PayPal Orders SDK, Next.js, Tailwind. State how each is used (README has a draft). |
 | S-08 | P0 | S | Integration | Submit on Devpost with margin; re-read the official Rules page (never read directly, only the overview) for anything extra. |
+| S-09b | P1 | S | You | **Vercel preview:** follow [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) (needs your Vercel login; `DATA_DIR=/tmp/bolpay-data`). Best effort only: `/tmp` data resets on cold starts and differs per instance. |
 | S-09 | P1 | M | Integration | **Hosted demo on Render** (also the Render prize): needs B-01 (Postgres) or a persistent disk. Add `render.yaml`. |
 | S-10 | P1 | S | Backend | **Postman collection** for the API and webhook flow (Postman prize area); export to `docs/postman/`. |
 | S-11 | P2 | M | Backend | **OpenAPI spec** for `/api/*` (APIMatic prize area; also helps judges). |
-| S-12 | P2 | M | Frontend | **AG Grid** for the workers, attendance and transactions tables (three AG Grid prize slots). |
+| S-12 | P2 | M | Frontend | **AG Grid:** done for the attendance history; workers and transactions still use plain tables (three AG Grid prize slots). |
 | S-13 | P2 | S | Integration | Pitch angles for the special awards: "Best Use of Agentic Commerce" (voice agent plans, human approves, PayPal pays) and "Most Impactful" (workers get paid correctly and fast). |
 
 ### A. Authentication, authorization, security

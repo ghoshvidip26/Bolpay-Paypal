@@ -1,0 +1,76 @@
+{
+  "model": "eleven_v4",
+  "note": "Narrator clips N1..N10 are the voice-over. Manager clips M1..M4 are the spoken voice commands. Square-bracket tags are delivery directions for the Eleven v3 family; if you hear a tag read aloud, delete the tags and regenerate.",
+  "narrator": [
+    {
+      "id": "N1",
+      "text": "[calmly] Every pay cycle, a manager somewhere is stitching together attendance, deliveries, bonuses and bank details from spreadsheets and chat threads. It takes hours... and one wrong cell means someone gets paid wrong."
+    },
+    {
+      "id": "N2",
+      "text": "[warmly] This is BolPay. Speak. Approve. Pay. You say what you need, a rules engine does the maths, a human approves, and PayPal sends the money."
+    },
+    {
+      "id": "N3",
+      "text": "[confident] And you don't start from scratch. This is a real Zoho People account. One click, and every employee, and this month's attendance, flow into BolPay. No retyping. Pay settings stay in BolPay, so a re-sync never overwrites a wage."
+    },
+    {
+      "id": "N3b",
+      "text": "Attendance comes across too, ready to review in a grid."
+    },
+    {
+      "id": "N4",
+      "text": "[excited] Now the good part. The manager just talks, in one breath, and BolPay turns it into a plan."
+    },
+    {
+      "id": "N5",
+      "text": "Three steps, in order. Nothing has moved yet."
+    },
+    {
+      "id": "N6",
+      "text": "[emphasizing] Before a single rupee moves, it shows the exact total, in rupees and in dollars. Only a second confirm sends it."
+    },
+    {
+      "id": "N7",
+      "text": "Nothing is paid blindly. Riders with missing or conflicting records land in Needs Review, and can't be approved until someone fixes them. Owners approve. Supervisors record attendance. Workers see only their own pay."
+    },
+    {
+      "id": "N8a",
+      "text": "Now the owner approves one payout, after seeing exactly how it was calculated."
+    },
+    {
+      "id": "N8",
+      "text": "[confident] And this is real. A live PayPal payouts batch, moving from processing to completed. Here it is in the PayPal sandbox... out of the business account, into the rider's."
+    },
+    {
+      "id": "N8b",
+      "text": "And on the rider's side, the money has landed."
+    },
+    {
+      "id": "N9",
+      "text": "Pay someone with no PayPal account yet, and PayPal emails them a sign-up link. BolPay shows that honestly, as awaiting sign-up, instead of pretending it's stuck."
+    },
+    {
+      "id": "N10",
+      "text": "[warmly] Voice first. Rules you can trust. A human on every payment. Real PayPal payouts. And a way in from the HR tools businesses already use. BolPay. Speak. Approve. Pay."
+    }
+  ],
+  "manager": [
+    {
+      "id": "M1",
+      "text": "Mark Anita Sharma absent today, then prepare payouts for Ravi Kumar and Mohammed Ali, then approve everything that's pending."
+    },
+    {
+      "id": "M2",
+      "text": "Confirm."
+    },
+    {
+      "id": "M3",
+      "text": "Yes, go ahead."
+    },
+    {
+      "id": "M4",
+      "text": "Prepare payouts for everyone."
+    }
+  ]
+}

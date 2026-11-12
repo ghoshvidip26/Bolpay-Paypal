@@ -232,3 +232,39 @@ BolPay's promise is to replace the manual work of paying people. A business will
 | Test employees have no attendance or salary | Mark attendance by voice on the imported data; default wage is editable; document in the pitch |
 | Fake employee emails cannot receive sandbox payouts | Set sandbox PayPal emails by voice on a few employees |
 | One stored Zoho connection for the server | Per-business tokens (Z-07). The dataset switch is already per person (Z-08 done) |
+
+## 17. Final state at submission (2026-11-12)
+
+### 17.1 Requirement status
+| PRD section | Requirement | Final status |
+|---|---|---|
+| 5.1 | Authentication, roles | **Done**: Supabase Auth, owner / supervisor / worker, server-side checks on every route; business scoping still open |
+| 5.2 | Workforce management | **Done**: workers, city, payout email, CSV import, attendance history grid; Zoho import adds real employees |
+| 5.3 | Voice interface | **Done** for English, Hindi and Hinglish (40 of 40 fixtures); Kannada, Tamil, Bengali untested; recorded take with a real microphone is part of the video |
+| 5.4 | AI intent processing | **Done**: ordered multi-step plans validated against real records; the model never calculates money or executes |
+| 5.5 | Incentive engine | **Done**: wage, overtime, daily delivery tiers, attendance bonus, rule versions, Needs Review; daily-only incentive batches not modelled |
+| 5.6 | Payout batch and approval | **Done**: exact-amount checkpoint, approve / reject, per-rider breakdown with rules version |
+| 5.7 | PayPal Payouts | **Done** on the sandbox: idempotent batches, sync, retry, awaiting-sign-up state; **not verified**: webhooks, cancel-and-refund (sandbox error), reconciliation screen |
+| 5.8 | Voice status updates | **Done** |
+| 16 | HRMS migration (Zoho People) | **Done** and verified against a live portal; salary is not available from Zoho People, so wages are configured |
+
+### 17.2 How the product is shown and judged
+- **Demo video** (under 3 minutes) following [DEMO_VIDEO.md](./DEMO_VIDEO.md): the problem, the Zoho import, one spoken sentence becoming a three-step plan, the exact-amount checkpoint, Needs Review, a live PayPal payout visible in the PayPal sandbox, and the awaiting-sign-up state.
+- **Functional demo:** run instructions in the README (judges can run it); a Vercel preview is optional and best-effort (see [DEPLOY_VERCEL.md](./DEPLOY_VERCEL.md) for its limits).
+- **Award angles:** Best Use of PayPal + AI and Agentic Commerce (an agent that plans and a human who approves, with exact amounts before PayPal moves money), Most Impactful (workers paid correctly and on time, migration from the HR tools businesses already use), Best Demo Delivery.
+
+### 17.3 Final success metrics
+| Metric | Result |
+|---|---|
+| Voice eval pass rate (target at least 95 percent) | 100 percent (40 of 40) |
+| Spoken flow runs end to end with an exact-amount checkpoint and no payment before the final confirm | Yes, in real runs |
+| Zero payments sent without an explicit confirmation | Yes |
+| Zoho import without manual entry | 20 employees and 150 attendance records from a live portal |
+| Re-sync preserves what the owner edited | Yes (wage, PayPal email) |
+| Webhook-driven status updates without pressing sync | Not verified (needs a public URL) |
+
+### 17.4 Known limitations (honest list)
+- Business data lives in JSON files; the Supabase schema exists for a later move. A serverless host needs `DATA_DIR` and loses data on cold starts.
+- Zoho People has no salary data; test employees have no email and little attendance.
+- PayPal's sandbox cannot be used to cancel unclaimed payments (internal error), has no API to create or delete test accounts, and blocked the India sender account, so ₹ amounts settle in US dollars at a fixed rate.
+- The language model is on a free tier (8,000 tokens per minute per model); the assistant fails over to a second model and says so when it is busy.
