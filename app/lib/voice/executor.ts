@@ -1,6 +1,6 @@
 import "server-only";
 import { formatMoney, formatUsd } from "@/app/lib/merchant/format";
-import { CURRENT_PERIOD, TODAY } from "@/app/lib/merchant/mock-data";
+import { getPeriod, getToday } from "@/app/lib/server/context";
 import { getDb, logAudit } from "@/app/lib/server/db";
 import {
   addWorker,
@@ -48,7 +48,7 @@ const count = (n: number, one: string) => `${n} ${n === 1 ? one : `${one}s`}`;
 
 /** Workers a step applies to, resolved against the data as it is right now. */
 function targets(step: ResolvedStep): string[] | null {
-  const r = resolveSelector((step.args.workers as Selector | null) ?? null, { date: (step.args.date as string) ?? TODAY, defaultAll: true, includeInactive: step.action === "update_worker" });
+  const r = resolveSelector((step.args.workers as Selector | null) ?? null, { date: (step.args.date as string) ?? getToday(), defaultAll: true, includeInactive: step.action === "update_worker" });
   return "workers" in r ? r.workers.map((w) => w.id) : null;
 }
 
@@ -63,7 +63,7 @@ export function previewMoney(step: ResolvedStep): MoneyPreview | null {
   const items =
     step.action === "approve_payouts"
       ? db.payouts.filter((p) => p.status === "pending" && ids.includes(p.workerId)).map((p) => ({ workerId: p.workerId, amount: p.amount }))
-      : db.transactions.filter((t) => t.status === "failed" && t.periodLabel === CURRENT_PERIOD.label && ids.includes(t.workerId)).map((t) => ({ workerId: t.workerId, amount: t.amount }));
+      : db.transactions.filter((t) => t.status === "failed" && t.periodLabel === getPeriod().label && ids.includes(t.workerId)).map((t) => ({ workerId: t.workerId, amount: t.amount }));
   const skipped = [...new Set(items.filter((i) => !db.workers.find((w) => w.id === i.workerId)?.payoutEmail).map((i) => nameOf(i.workerId)))];
   return {
     count: items.length,
@@ -87,11 +87,11 @@ const failMessage = (e: unknown) => (e instanceof ServiceError ? e.message : "So
 async function runStep(step: ResolvedStep, dryRun: boolean): Promise<StepOutcome & { navigate?: string }> {
   const db = getDb();
   const a = step.args;
-  const date = (a.date as string | null) ?? TODAY;
+  const date = (a.date as string | null) ?? getToday();
   const ids = step.action === "add_worker" || step.action === "set_rule" || step.action === "set_tier" || step.action === "remove_tier" || step.action === "navigate" || step.action === "sync_status" ? [] : targets(step);
   if (ids === null) return { ok: false, message: "I couldn't work out which workers you meant." };
   const nameOf = (id: string) => db.workers.find((w) => w.id === id)?.name ?? "Unknown";
-  const dateWord = date === TODAY ? "today" : date;
+  const dateWord = date === getToday() ? "today" : date;
 
   switch (step.action) {
     case "mark_attendance":
@@ -144,7 +144,7 @@ async function runStep(step: ResolvedStep, dryRun: boolean): Promise<StepOutcome
     }
 
     case "retry_failed": {
-      const failed = db.transactions.filter((t) => t.status === "failed" && t.periodLabel === CURRENT_PERIOD.label && ids.includes(t.workerId));
+      const failed = db.transactions.filter((t) => t.status === "failed" && t.periodLabel === getPeriod().label && ids.includes(t.workerId));
       if (!failed.length) return { ok: true, skipped: true, message: "No failed payments matched." };
       if (dryRun) return { ok: true, message: `Would have retried ${count(failed.length, "failed payment")}.` };
       let retried = 0;

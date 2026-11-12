@@ -1,6 +1,6 @@
 import "server-only";
 import { formatDate } from "@/app/lib/merchant/format";
-import { CURRENT_PERIOD, TODAY } from "@/app/lib/merchant/mock-data";
+import { getPeriod, getToday } from "@/app/lib/server/context";
 import type { Worker } from "@/app/lib/merchant/types";
 import { getDb } from "@/app/lib/server/db";
 import type { Selector } from "./types";
@@ -89,7 +89,7 @@ export function resolveSelector(sel: Selector | null, o: SelOptions): SelResult 
     const hasRecord = (w: Worker) => db.attendance.some((r) => r.workerId === w.id && r.date === o.date);
     if (f === "missing_attendance" || f === "not_marked_today") picked = active.filter((w) => !hasRecord(w));
     else if (f === "failed_payment") {
-      const ids = new Set(db.transactions.filter((t) => t.status === "failed" && t.periodLabel === CURRENT_PERIOD.label).map((t) => t.workerId));
+      const ids = new Set(db.transactions.filter((t) => t.status === "failed" && t.periodLabel === getPeriod().label).map((t) => t.workerId));
       picked = active.filter((w) => ids.has(w.id));
     } else if (f === "pending_payout") {
       const ids = new Set(db.payouts.filter((p) => p.status === "pending").map((p) => p.workerId));
@@ -133,7 +133,7 @@ export function resolveSelector(sel: Selector | null, o: SelOptions): SelResult 
       const r = db.attendance.find((x) => x.workerId === w.id && x.date === o.date);
       return !!r && (r.status === "present" || r.status === "half") && r.units >= min;
     });
-    const when = o.date === TODAY ? "today" : `on ${formatDate(o.date)}`;
+    const when = o.date === getToday() ? "today" : `on ${formatDate(o.date)}`;
     label = noun ? `${picked.length} ${noun} with at least ${min} deliveries ${when}` : `${label} with at least ${min} deliveries ${when}`;
   } else if (noun && sel?.scope !== "names") {
     label = `${sel?.scope === "all" || !sel ? "all " : ""}${picked.length} ${noun}`;
@@ -143,10 +143,10 @@ export function resolveSelector(sel: Selector | null, o: SelOptions): SelResult 
 
 /** Validates a date slot. Null means today. */
 export function resolveDate(v: unknown, opts: { withinPeriod: boolean }): { date: string } | { error: string } {
-  if (v === null || v === undefined || v === "") return { date: TODAY };
+  if (v === null || v === undefined || v === "") return { date: getToday() };
   const d = String(v);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d))) return { error: "I couldn't understand that date." };
-  if (d > TODAY) return { error: "That date is in the future." };
-  if (opts.withinPeriod && d < CURRENT_PERIOD.start) return { error: `That date is before the current pay period (${CURRENT_PERIOD.label}).` };
+  if (d > getToday()) return { error: "That date is in the future." };
+  if (opts.withinPeriod && d < getPeriod().start) return { error: `That date is before the current pay period (${getPeriod().label}).` };
   return { date: d };
 }

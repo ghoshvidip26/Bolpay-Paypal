@@ -17,6 +17,7 @@ export const IconAttendance = (p: P) => <Icon {...p} d="M4.5 4.5h11a1 1 0 011 1v
 export const IconTiers = (p: P) => <Icon {...p} d="M3 16.5h14M4.5 16.5v-4h3v4M8.5 16.5v-8h3v8M12.5 16.5v-12h3v12" />;
 export const IconApprove = (p: P) => <Icon {...p} d="M7 3.5h6v2.25H7zM13 4.5h1.5a1 1 0 011 1v10a1 1 0 01-1 1h-9a1 1 0 01-1-1v-10a1 1 0 011-1H7M7.5 11.25l1.75 1.75 3.25-3.5" />;
 export const IconLedger = (p: P) => <Icon {...p} d="M4 7h12M13 4l3 3-3 3M16 13H4M7 10l-3 3 3 3" />;
+export const IconIntegrations = (p: P) => <Icon {...p} d="M8 6.5H6a3 3 0 000 6h2M12 6.5h2a3 3 0 010 6h-2M7.5 9.5h5" />;
 export const IconSettings = (p: P) => (
   <Icon
     {...p}

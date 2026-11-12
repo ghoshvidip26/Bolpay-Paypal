@@ -1,6 +1,6 @@
 import "server-only";
 import { groqChat, GROQ_MODEL, IntentModelError } from "@/app/lib/ai/intent";
-import { CURRENT_PERIOD, TODAY } from "@/app/lib/merchant/mock-data";
+import { getPeriod, getToday } from "@/app/lib/server/context";
 import { getDb } from "@/app/lib/server/db";
 import { CATALOG, planSchema, renderActionDocs, renderExamples, SELECTOR_FILTER_DOCS } from "./catalog";
 import { normalizeRawSteps } from "./resolver";
@@ -32,7 +32,7 @@ export function plannerPrompt(pending: boolean): string {
   return `You are the planner for BolPay, a voice-controlled workforce attendance and payout app. You turn one spoken request into an ordered list of steps. Reply with JSON matching the schema and nothing else.
 
 ## Context
-Today is ${TODAY}. The current pay period runs ${CURRENT_PERIOD.start} to ${CURRENT_PERIOD.end}.
+Today is ${getToday()}. The current pay period runs ${getPeriod().start} to ${getPeriod().end}.
 Cities: ${cities.join(", ") || "(none)"}.
 Workers (valid names): ${active.map((w) => `${w.name} (${w.city})`).join(", ") || "(none)"}.
 Inactive workers can still be named for update_worker.

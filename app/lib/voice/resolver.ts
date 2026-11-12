@@ -1,6 +1,6 @@
 import "server-only";
 import { formatDate } from "@/app/lib/merchant/format";
-import { TODAY } from "@/app/lib/merchant/mock-data";
+import { getToday } from "@/app/lib/server/context";
 import { CATALOG, slotValues, type SlotDef } from "./catalog";
 import { resolveDate, resolveSelector } from "./selectors";
 import type { Args, RawStep, ResolvedStep, Selector } from "./types";
@@ -89,13 +89,13 @@ export function resolveSteps(raw: RawStep[]): Resolution {
 
     // Date first: selectors with minUnits or attendance filters depend on it.
     const dateSlot = def.slots.date;
-    let date = TODAY;
+    let date = getToday();
     if (dateSlot) {
       const r = resolveDate(args.date, { withinPeriod: def.changesPayData === true && action !== "query" });
       if ("error" in r) return { kind: "reject", reason: r.error };
       date = r.date;
       resolved.date = date;
-      vars.date = date === TODAY ? "today" : `on ${formatDate(date)}`;
+      vars.date = date === getToday() ? "today" : `on ${formatDate(date)}`;
     }
 
     for (const [key, slot] of Object.entries(def.slots)) {

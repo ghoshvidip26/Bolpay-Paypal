@@ -1,7 +1,7 @@
 import "server-only";
 import { formatDate, formatMoney } from "@/app/lib/merchant/format";
 import { calculatePay } from "@/app/lib/merchant/incentives";
-import { CURRENT_PERIOD, TODAY } from "@/app/lib/merchant/mock-data";
+import { getPeriod, getToday } from "@/app/lib/server/context";
 import { getDb } from "@/app/lib/server/db";
 
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
@@ -14,10 +14,10 @@ const some = (names: string[], max = 6) => (names.length <= max ? names.join(", 
 export function answerQuery(kind: string, o: { workerIds: string[] | null; date: string; n: number | null }): string {
   const db = getDb();
   const nameOf = (id: string) => db.workers.find((w) => w.id === id)?.name ?? "Unknown";
-  const txs = db.transactions.filter((t) => t.periodLabel === CURRENT_PERIOD.label);
-  const payouts = db.payouts.filter((p) => p.periodId === CURRENT_PERIOD.id);
+  const txs = db.transactions.filter((t) => t.periodLabel === getPeriod().label);
+  const payouts = db.payouts.filter((p) => p.periodId === getPeriod().id);
   const active = db.workers.filter((w) => w.status === "active");
-  const records = db.attendance.filter((r) => r.date >= CURRENT_PERIOD.start && r.date <= CURRENT_PERIOD.end);
+  const records = db.attendance.filter((r) => r.date >= getPeriod().start && r.date <= getPeriod().end);
   const pay = (id: string) => {
     const w = db.workers.find((x) => x.id === id)!;
     return calculatePay(w, records, db.rules).total;
@@ -25,12 +25,13 @@ export function answerQuery(kind: string, o: { workerIds: string[] | null; date:
   const by = (s: string) => txs.filter((t) => t.status === s);
   const pending = payouts.filter((p) => p.status === "pending");
   const review = payouts.filter((p) => p.status === "needs_review");
-  const dateLabel = o.date === TODAY ? "today" : formatDate(o.date);
+  const dateLabel = o.date === getToday() ? "today" : formatDate(o.date);
 
   switch (kind) {
     case "payout_summary": {
       if (txs.length === 0 && pending.length === 0 && review.length === 0) return "There are no payouts for this period yet.";
       const parts = [`${by("completed").length} completed`, `${by("processing").length} processing`, `${by("failed").length} failed`];
+      if (by("unclaimed").length) parts.push(`${by("unclaimed").length} waiting for the recipient to sign up to PayPal`);
       const extra = [pending.length ? `${pending.length} awaiting approval` : "", review.length ? `${review.length} need review` : ""].filter(Boolean);
       return `This period: ${parts.join(", ")}${extra.length ? `, and ${extra.join(" and ")}` : ""}.`;
     }
@@ -42,7 +43,9 @@ export function answerQuery(kind: string, o: { workerIds: string[] | null; date:
       return `${plural(by("completed").length, "payment")} completed.`;
     case "processing_payments": {
       const p = by("processing");
-      return p.length ? `${plural(p.length, "payment")} still processing: ${some(p.map((t) => nameOf(t.workerId)))}.` : "Nothing is processing.";
+      const u = by("unclaimed");
+      const unclaimed = u.length ? ` ${plural(u.length, "payment")} waiting for the recipient to sign up to PayPal: ${some(u.map((t) => nameOf(t.workerId)))}.` : "";
+      return p.length ? `${plural(p.length, "payment")} still processing: ${some(p.map((t) => nameOf(t.workerId)))}.${unclaimed}` : u.length ? unclaimed.trim() : "Nothing is processing.";
     }
     case "pending_payouts": {
       const proc = by("processing");

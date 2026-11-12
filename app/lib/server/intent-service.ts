@@ -2,7 +2,7 @@ import "server-only";
 import { extractIntent, type RawIntent } from "@/app/lib/ai/intent";
 import { translateReply } from "@/app/lib/ai/translate";
 import { PAGES, type IntentContext, type IntentPlan } from "@/app/lib/merchant/intent-types";
-import { CURRENT_PERIOD, TODAY } from "@/app/lib/merchant/mock-data";
+import { getPeriod, getToday } from "@/app/lib/server/context";
 import type { Worker } from "@/app/lib/merchant/types";
 import { getDb } from "./db";
 
@@ -27,18 +27,18 @@ export function findWorker(name: string | null, workers: Worker[]): Match {
 }
 
 function resolveDate(date: string | null): { date: string } | { reason: string } {
-  const d = date ?? TODAY;
+  const d = date ?? getToday();
   if (!/^\d{4}-\d{2}-\d{2}$/.test(d) || Number.isNaN(Date.parse(d))) return { reason: "I couldn't understand that date." };
-  if (d > TODAY) return { reason: "That date is in the future." };
-  if (d < CURRENT_PERIOD.start) return { reason: `That date is before the current pay period (${CURRENT_PERIOD.label}).` };
+  if (d > getToday()) return { reason: "That date is in the future." };
+  if (d < getPeriod().start) return { reason: `That date is before the current pay period (${getPeriod().label}).` };
   return { date: d };
 }
 
 function statusAnswer(query: RawIntent["statusQuery"]): string {
   const db = getDb();
   const name = (id: string) => db.workers.find((w) => w.id === id)?.name ?? "Unknown";
-  const txs = db.transactions.filter((t) => t.periodLabel === CURRENT_PERIOD.label);
-  const pendingApproval = db.payouts.filter((p) => p.periodId === CURRENT_PERIOD.id && p.status === "pending");
+  const txs = db.transactions.filter((t) => t.periodLabel === getPeriod().label);
+  const pendingApproval = db.payouts.filter((p) => p.periodId === getPeriod().id && p.status === "pending");
   const by = (s: string) => txs.filter((t) => t.status === s);
   const completed = by("completed");
   const processing = by("processing");
@@ -151,9 +151,9 @@ export async function planFromText(text: string, context?: IntentContext): Promi
   const raw = await extractIntent({
     text,
     context,
-    today: TODAY,
-    periodStart: CURRENT_PERIOD.start,
-    periodEnd: CURRENT_PERIOD.end,
+    today: getToday(),
+    periodStart: getPeriod().start,
+    periodEnd: getPeriod().end,
     workerNames: db.workers.filter((w) => w.status === "active").map((w) => w.name),
   });
   const plan = resolveIntent(raw);
