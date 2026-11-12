@@ -1,11 +1,24 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 import { useStore } from "@/app/lib/merchant/store";
 import { dateRange, formatDate } from "@/app/lib/merchant/format";
 import type { AttendanceStatus } from "@/app/lib/merchant/types";
 import { useToast } from "../../feedback/Toaster";
 import { Avatar, Button, Card, EmptyState, fieldClass, PageHeader, Segmented, td, th } from "../ui";
+
+// AG Grid is ~335 kB gzipped and the history sits below the fold, so load it after the daily editor.
+const AttendanceHistory = dynamic(() => import("../AttendanceHistory").then((m) => m.AttendanceHistory), {
+  ssr: false,
+  loading: () => (
+    <Card className="mt-5" title="Attendance history">
+      <div role="status" aria-busy="true" aria-label="Loading attendance history" className="space-y-2">
+        {[0, 1, 2, 3].map((i) => <span key={i} className="block h-6 animate-pulse rounded bg-slate-200/80" />)}
+      </div>
+    </Card>
+  ),
+});
 
 const DOT: Record<AttendanceStatus, string> = { present: "bg-emerald-500", half: "bg-amber-500", absent: "bg-rose-500", leave: "bg-sky-500" };
 const OPTIONS: { value: AttendanceStatus; label: string; dot: string }[] = [
@@ -133,6 +146,13 @@ export function AttendanceView() {
           <span className="flex items-center gap-1.5"><span className="size-2.5 rounded-sm bg-slate-200" />Not marked</span>
         </div>
       </Card>
+    
+      <AttendanceHistory
+        onOpenDate={(d) => {
+          setDate(d);
+          window.scrollTo({ top: 0, behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth" });
+        }}
+      />
     </>
   );
 }
