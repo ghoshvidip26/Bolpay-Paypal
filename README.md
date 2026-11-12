@@ -14,6 +14,9 @@
 
 Built for the **PayPal AI Hackathon 2026**.
 
+### Agentic commerce, with a human in control
+BolPay's voice assistant is an AI agent that plans and carries out payments, not a single command parser. One sentence can hold several intents ("mark Anita absent, prepare payouts for Ravi and Mohammed, then approve everything pending"). The agent turns it into an ordered list of tool calls from a catalog of 15 actions (attendance, overtime, deliveries, payout prepare, approve, reject, retry, worker edits, incentive rules, status sync, 13 kinds of read only questions, navigation). A server side resolver validates every call against real records, asks one clarifying question when a name or number is missing or ambiguous, and keeps the conversation across turns, so follow ups, plan edits, "cancel" and a spoken "confirm" in English, Hindi or Hinglish all work. The executor runs the steps in order and stops at a money checkpoint that shows the exact rupee and dollar total. The model never calculates an amount and never decides to execute: only the plan the server stored can run. 40 dry run conversations cover this, including prompt injection attempts (`npm run test:voice`).
+
 ---
 
 ## Contents
