@@ -12,6 +12,12 @@ export interface Worker {
   dailyWage: number;
   joinedOn: string; // YYYY-MM-DD
   status: WorkerStatus;
+  /** Set for workers imported from an HR system, e.g. "zoho:S19". Syncs match on this. */
+  externalId?: string;
+  /** Where the record came from; absent for workers created in BolPay. */
+  source?: "zoho";
+  /** Department from the HR system (informational). */
+  department?: string;
 }
 
 export type AttendanceStatus = "present" | "half" | "absent" | "leave";
@@ -87,7 +93,8 @@ export interface Payout {
   decidedAt?: string;
 }
 
-export type TransactionStatus = "processing" | "completed" | "failed";
+/** "unclaimed": PayPal accepted the payout but the recipient has no PayPal account yet (they get a sign-up link). */
+export type TransactionStatus = "processing" | "unclaimed" | "completed" | "failed";
 
 export interface Transaction {
   id: string;
@@ -107,4 +114,8 @@ export interface Transaction {
   batchId?: string;
   /** How many times this payout has been submitted (retries increment it). */
   attempt?: number;
+  /** PayPal's id for this payout item; needed to cancel an unclaimed payment. */
+  paypalItemId?: string;
+  /** Explains a state that isn't final, e.g. why a payment is waiting for the recipient. */
+  note?: string;
 }

@@ -2,7 +2,8 @@ import "server-only";
 import { createHash } from "node:crypto";
 import { calculatePay } from "@/app/lib/merchant/incentives";
 import { dateRange, formatDate } from "@/app/lib/merchant/format";
-import { CURRENT_PERIOD, DEFAULT_INR_PER_USD, TODAY } from "@/app/lib/merchant/mock-data";
+import { DEFAULT_INR_PER_USD } from "@/app/lib/merchant/mock-data";
+import { getPeriod, getToday } from "@/app/lib/server/context";
 import type {
   AttendanceRecord,
   AttendanceStatus,
@@ -11,7 +12,7 @@ import type {
   Transaction,
   Worker,
 } from "@/app/lib/merchant/types";
-import { createPayoutBatch, getPayoutBatch, mapTransactionStatus } from "@/app/lib/paypal/payouts";
+import { cancelPayoutItem, createPayoutBatch, getPayoutBatch, mapTransactionStatus } from "@/app/lib/paypal/payouts";
 import { isLivePayPal, PayPalError } from "@/app/lib/paypal/rest";
 import { parseCsv } from "./csv";
 import { getDb, logAudit, saveDb } from "./db";
@@ -34,7 +35,7 @@ const num = (v: unknown) => (typeof v === "number" ? v : typeof v === "string" &
 
 export function getSnapshot() {
   const { workers, attendance, rules, payouts, transactions } = getDb();
-  return { today: TODAY, period: CURRENT_PERIOD, workers, attendance, rules, payouts, transactions };
+  return { today: getToday(), period: getPeriod(), workers, attendance, rules, payouts, transactions };
 }
 export type Snapshot = ReturnType<typeof getSnapshot>;
 
@@ -56,7 +57,7 @@ function buildWorker(input: Record<string, unknown>): Worker {
     phone: str(input.phone, 40),
     payoutEmail,
     dailyWage,
-    joinedOn: TODAY,
+    joinedOn: getToday(),
     status: "active",
   };
 }
@@ -109,7 +110,7 @@ export function updateWorker(id: string, patch: Record<string, unknown>) {
 function applyAttendance(workerId: string, date: string, patch: Record<string, unknown>) {
   const db = getDb();
   if (!db.workers.some((w) => w.id === workerId)) throw new ServiceError("Worker not found", 404);
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < CURRENT_PERIOD.start || date > TODAY) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || date < getPeriod().start || date > getToday()) {
     throw new ServiceError("Date must be inside the current pay period and not in the future");
   }
   let rec = db.attendance.find((r) => r.workerId === workerId && r.date === date);
@@ -177,7 +178,7 @@ export function setRules(input: Record<string, unknown>) {
 
 /** How many payouts (any status) this worker already has in the current period; keeps ids unique after a rejection. */
 function previousAttempts(payouts: Payout[], workerId: string) {
-  return payouts.filter((p) => p.periodId === CURRENT_PERIOD.id && p.workerId === workerId).length;
+  return payouts.filter((p) => p.periodId === getPeriod().id && p.workerId === workerId).length;
 }
 
 export interface PrepareFilter {
@@ -196,7 +197,9 @@ const normCity = (c: string) => c.normalize("NFKC").toLowerCase().trim();
 function reviewReasons(w: Worker, records: AttendanceRecord[]): string[] {
   const reasons: string[] = [];
   const mine = records.filter((r) => r.workerId === w.id);
-  const days = dateRange(CURRENT_PERIOD.start, CURRENT_PERIOD.end).filter((d) => d < TODAY && d >= w.joinedOn);
+  // Employees synced from an HR system have weekends off, and the HR system leaves them unmarked on purpose.
+  const isWeekend = (d: string) => [0, 6].includes(new Date(`${d}T00:00:00Z`).getUTCDay());
+  const days = dateRange(getPeriod().start, getPeriod().end).filter((d) => d < getToday() && d >= w.joinedOn && !(w.source === "zoho" && isWeekend(d)));
   const have = new Set(mine.map((r) => r.date));
   const missing = days.filter((d) => !have.has(d));
   if (missing.length) {
@@ -218,11 +221,11 @@ function reviewReasons(w: Worker, records: AttendanceRecord[]): string[] {
  */
 export function submitPeriod(filter: PrepareFilter = {}): { created: number; needsReview: number; skipped: number } {
   const db = getDb();
-  db.payouts = db.payouts.filter((p) => !(p.periodId === CURRENT_PERIOD.id && p.status === "needs_review"));
+  db.payouts = db.payouts.filter((p) => !(p.periodId === getPeriod().id && p.status === "needs_review"));
   // Rejected payouts don't block a new submission; pending and approved ones do.
-  const done = new Set(db.payouts.filter((p) => p.periodId === CURRENT_PERIOD.id && p.status !== "rejected").map((p) => p.workerId));
-  const records = db.attendance.filter((r) => r.date >= CURRENT_PERIOD.start && r.date <= CURRENT_PERIOD.end);
-  const filterDate = filter.date ?? TODAY;
+  const done = new Set(db.payouts.filter((p) => p.periodId === getPeriod().id && p.status !== "rejected").map((p) => p.workerId));
+  const records = db.attendance.filter((r) => r.date >= getPeriod().start && r.date <= getPeriod().end);
+  const filterDate = filter.date ?? getToday();
   const now = new Date().toISOString();
   const created: Payout[] = [];
   let skipped = 0;
@@ -248,10 +251,10 @@ export function submitPeriod(filter: PrepareFilter = {}): { created: number; nee
     const breakdown = calculatePay(w, records, db.rules);
     if (breakdown.total <= 0 && reasons.length === 0) continue;
     created.push({
-      id: previousAttempts(db.payouts, w.id) === 0 ? `po-${CURRENT_PERIOD.id}-${w.id}` : `po-${CURRENT_PERIOD.id}-${w.id}-r${previousAttempts(db.payouts, w.id) + 1}`,
+      id: previousAttempts(db.payouts, w.id) === 0 ? `po-${getPeriod().id}-${w.id}` : `po-${getPeriod().id}-${w.id}-r${previousAttempts(db.payouts, w.id) + 1}`,
       workerId: w.id,
-      periodId: CURRENT_PERIOD.id,
-      periodLabel: CURRENT_PERIOD.label,
+      periodId: getPeriod().id,
+      periodLabel: getPeriod().label,
       breakdown,
       amount: breakdown.total,
       status: reasons.length ? "needs_review" : "pending",
@@ -308,6 +311,8 @@ export async function retryTransaction(id: string) {
   if (tx.status !== "failed") throw new ServiceError("Only failed transactions can be retried", 409);
   tx.status = "processing";
   tx.failureReason = undefined;
+  tx.note = undefined;
+  tx.paypalItemId = undefined;
   tx.reference = "Submitting…";
   tx.batchId = undefined;
   tx.attempt = (tx.attempt ?? 1) + 1;
@@ -378,7 +383,7 @@ async function submitToPayPal(txIds: string[]) {
 /** Pulls live item statuses from PayPal for every batch that still has processing items. */
 export async function syncTransactions() {
   const db = getDb();
-  const batchIds = [...new Set(db.transactions.filter((t) => t.status === "processing" && t.batchId).map((t) => t.batchId!))];
+  const batchIds = [...new Set(db.transactions.filter((t) => (t.status === "processing" || t.status === "unclaimed") && t.batchId).map((t) => t.batchId!))];
   for (const batchId of batchIds) {
     try {
       const batch = await getPayoutBatch(batchId);
@@ -394,9 +399,39 @@ export async function syncTransactions() {
 }
 
 function applyItemStatus(tx: Transaction, status: Transaction["status"], paypalItemId?: string, error?: string) {
-  if (paypalItemId) tx.reference = paypalItemId;
+  if (paypalItemId) {
+    tx.reference = paypalItemId;
+    tx.paypalItemId = paypalItemId;
+  }
   tx.status = status;
   tx.failureReason = status === "failed" ? (error ?? "Payment failed") : undefined;
+  tx.note = status === "unclaimed" ? UNCLAIMED_NOTE : undefined;
+}
+
+const UNCLAIMED_NOTE =
+  "The recipient has no PayPal account for this email. PayPal sent them a sign-up link. It completes when they claim it; after 30 days unclaimed money returns to you. You can cancel and refund it now.";
+
+/** Cancels a payment that is waiting for the recipient to sign up, returning the money to your PayPal balance. */
+export async function cancelUnclaimed(id: string) {
+  const db = getDb();
+  const tx = db.transactions.find((t) => t.id === id);
+  if (!tx) throw new ServiceError("Transaction not found", 404);
+  if (tx.status !== "unclaimed" || !tx.paypalItemId) throw new ServiceError("Only a payment waiting for the recipient to sign up to PayPal can be cancelled", 409);
+  try {
+    await cancelPayoutItem(tx.paypalItemId);
+  } catch (err) {
+    const msg = err instanceof PayPalError ? err.message : "";
+    // PayPal only allows this once the whole batch has finished processing.
+    if (/Processed status/i.test(msg)) throw new ServiceError("PayPal is still finishing this batch. Try again in a minute.", 409);
+    // The PayPal sandbox answers this call with an internal error even for valid unclaimed items.
+    if (err instanceof PayPalError && err.status >= 500) throw new ServiceError(`PayPal could not cancel this payment right now${err.debugId ? ` (reference ${err.debugId})` : ""}. Unclaimed money returns to you automatically after 30 days.`, 502);
+    throw new ServiceError(msg ? `PayPal: ${msg}` : "Could not cancel the payment", 502);
+  }
+  tx.status = "failed";
+  tx.note = undefined;
+  tx.failureReason = "Cancelled by you. The money was returned to your PayPal balance. Fix the PayPal email, then Retry.";
+  logAudit("payout.cancel_unclaimed", tx.id);
+  saveDb();
 }
 
 /** Applies a verified PAYMENT.PAYOUTS-ITEM.* webhook event. */

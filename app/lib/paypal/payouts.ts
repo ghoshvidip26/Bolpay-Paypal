@@ -1,7 +1,7 @@
 import "server-only";
 import { paypalFetch } from "./rest";
 
-export type ItemStatus = "processing" | "completed" | "failed";
+export type ItemStatus = "processing" | "unclaimed" | "completed" | "failed";
 
 export interface PayoutItemInput {
   /** Our payout id; sent as sender_item_id so PayPal results map back to it. */
@@ -18,7 +18,7 @@ export interface PayoutItemResult {
   error?: string;
 }
 
-/** Maps PayPal's transaction_status values onto our three display states. */
+/** Maps PayPal's transaction_status values onto our display states. */
 export function mapTransactionStatus(s: string | undefined): ItemStatus {
   switch (s) {
     case "SUCCESS":
@@ -31,7 +31,10 @@ export function mapTransactionStatus(s: string | undefined): ItemStatus {
     case "DENIED":
     case "CANCELED":
       return "failed";
-    // PENDING, ONHOLD, UNCLAIMED: not settled yet.
+    // The recipient has no PayPal account: PayPal emailed a sign-up link and holds the money for 30 days.
+    case "UNCLAIMED":
+      return "unclaimed";
+    // PENDING, ONHOLD: not settled yet.
     default:
       return "processing";
   }
@@ -92,6 +95,11 @@ export async function getPayoutBatch(batchId: string): Promise<{ batchStatus: st
           (i.transaction_status === "UNCLAIMED" ? "Recipient has no PayPal account yet (unclaimed)" : undefined),
       })),
   };
+}
+
+/** Cancels a payout item that is still unclaimed; PayPal returns the money to the sender's balance. */
+export async function cancelPayoutItem(payoutItemId: string): Promise<void> {
+  await paypalFetch(`/v1/payments/payouts-item/${encodeURIComponent(payoutItemId)}/cancel`, { method: "POST" });
 }
 
 export interface WebhookHeaders {

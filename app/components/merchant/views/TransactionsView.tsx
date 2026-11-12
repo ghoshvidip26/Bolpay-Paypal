@@ -11,6 +11,7 @@ type Filter = "all" | TransactionStatus;
 const FILTERS: { value: Filter; label: string }[] = [
   { value: "all", label: "All" },
   { value: "processing", label: "Processing" },
+  { value: "unclaimed", label: "Awaiting sign-up" },
   { value: "completed", label: "Completed" },
   { value: "failed", label: "Failed" },
 ];
@@ -19,7 +20,7 @@ const FILTERS: { value: Filter; label: string }[] = [
 const hasReference = (ref: string | undefined) => Boolean(ref && ref !== "—" && ref !== "Submitting…");
 
 export function TransactionsView() {
-  const { transactions, workerById, retryTransaction } = useStore();
+  const { transactions, workerById, retryTransaction, cancelTransaction } = useStore();
   const [filter, setFilter] = useState<Filter>("all");
   const [retrying, setRetrying] = useState<string | null>(null);
   const toast = useToast();
@@ -29,6 +30,14 @@ export function TransactionsView() {
     const ok = await retryTransaction(id);
     setRetrying(null);
     if (ok) toast({ tone: "info", title: `Retry sent for ${name}`, description: "PayPal is processing it again." });
+  }
+
+  async function cancel(id: string, name: string) {
+    if (!window.confirm(`Cancel the payment to ${name} and return the money to your PayPal balance?`)) return;
+    setRetrying(id);
+    const ok = await cancelTransaction(id);
+    setRetrying(null);
+    if (ok) toast({ tone: "success", title: `Payment to ${name} cancelled`, description: "The money is back in your PayPal balance." });
   }
 
   const sum = (s: TransactionStatus) => transactions.filter((t) => t.status === s).reduce((a, t) => a + t.amount, 0);
@@ -43,7 +52,7 @@ export function TransactionsView() {
 
       <Stats className="mb-5">
         <Stat label="Paid out" value={formatMoney(sum("completed"))} hint={`${count("completed")} completed`} tone={count("completed") ? "good" : "default"} />
-        <Stat label="In progress" value={formatMoney(sum("processing"))} hint={`${count("processing")} processing`} />
+        <Stat label="In progress" value={formatMoney(sum("processing") + sum("unclaimed"))} hint={count("unclaimed") ? `${count("processing")} processing, ${count("unclaimed")} awaiting sign-up` : `${count("processing")} processing`} tone={count("unclaimed") ? "warn" : "default"} />
         <Stat label="Failed" value={formatMoney(sum("failed"))} hint={count("failed") ? `${count("failed")} need attention` : "None"} tone={count("failed") ? "warn" : "default"} />
       </Stats>
 
@@ -77,8 +86,14 @@ export function TransactionsView() {
                       <td className={td}>
                         <StatusBadge status={t.status} />
                         {t.failureReason && <p className="mt-1 max-w-[16rem] whitespace-normal text-xs text-rose-700">{t.failureReason}</p>}
+                        {t.note && <p className="mt-1 max-w-[15rem] whitespace-normal text-xs text-amber-800">{t.note}</p>}
                       </td>
                       <td className={`${td} text-right`}>
+                        {t.status === "unclaimed" && (
+                          <Button size="sm" disabled={retrying === t.id} onClick={() => void cancel(t.id, w?.name ?? "this worker")}>
+                            {retrying === t.id ? "Cancelling…" : "Cancel and refund"}
+                          </Button>
+                        )}
                         {t.status === "failed" && (
                           <Button size="sm" disabled={retrying === t.id} onClick={() => void retry(t.id, w?.name ?? "this worker")} title={w?.payoutEmail ? undefined : "Add a PayPal email on the Workers page first"}>
                             {retrying === t.id ? "Retrying…" : "Retry"}
