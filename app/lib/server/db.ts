@@ -40,7 +40,9 @@ export interface Db {
   transactions: Transaction[];
 }
 
-const DIR = path.join(process.cwd(), ".data");
+// DATA_DIR lets a host with a read-only project folder (Vercel) keep the JSON files in a writable one such as /tmp.
+export const DATA_DIR = process.env.DATA_DIR || path.join(process.cwd(), ".data");
+const DIR = DATA_DIR;
 const FILES: Record<Workspace, string> = { demo: path.join(DIR, "db.json"), zoho: path.join(DIR, "zoho.json") };
 // globalThis (not module state) so every route bundle shares the same cache and the same request scope.
 const g = globalThis as unknown as { __dbs?: Partial<Record<Workspace, Db>>; __workspaceScope?: AsyncLocalStorage<Workspace> };
