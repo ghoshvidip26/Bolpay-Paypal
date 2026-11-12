@@ -403,6 +403,16 @@ The demo logins all use the password `BolPayDemo#2026`. Enter them on `/login`:
 
 To use your own Supabase project, apply `supabase/migrations/*.sql`, then run `supabase/seed.sql` in the SQL editor to create the business and the three logins.
 
+## Import from Zoho People (optional)
+
+BolPay can pull your employees and attendance from Zoho People, so HR can run payouts without re-entering anyone. The trained demo data stays untouched in a separate dataset.
+
+1. Create the keys (about 5 minutes, as the Zoho account owner): open https://api-console.zoho.in (use your data center's console if not India), **Add Client**, **Server-based Applications**, set the Authorized Redirect URI to `http://localhost:3000/api/zoho/callback`, and copy the Client ID and Client Secret into `.env` as `ZOHO_CLIENT_ID` and `ZOHO_CLIENT_SECRET` (see `.env.example`). Restart the dev server.
+2. Sign in as the owner, open **Integrations**, press **Connect Zoho**, allow access, then press **Sync now**.
+3. Use the **Dataset** switch in the sidebar (Demo / Zoho HRMS) to move between the two datasets. Everything, including the voice assistant, works on whichever is active.
+
+Zoho People has no salary data, so new employees get `ZOHO_DEFAULT_DAILY_WAGE` until you edit it. Details: [docs/BUILT.md](docs/BUILT.md) section 12.
+
 ### PayPal sandbox setup
 1. At developer.paypal.com create a **US Business** sandbox account (Testing Tools → Sandbox Accounts). Business accounts from some countries, e.g. India, can't send payouts.
 2. Create an app for it (Apps & Credentials), keep **Payouts** enabled, and copy the Client ID and Secret into `.env.local`.

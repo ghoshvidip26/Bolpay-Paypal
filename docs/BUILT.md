@@ -1,6 +1,6 @@
 # What is built so far
 
-Updated 2026-11-07. PRD section numbers refer to [PRD.md](./PRD.md). What is left: [REMAINING.md](./REMAINING.md). Voice details: [VOICE.md](./VOICE.md). Manual test and demo script: [DEMO.md](./DEMO.md).
+Updated 2026-11-12. PRD section numbers refer to [PRD.md](./PRD.md). What is left: [REMAINING.md](./REMAINING.md). Voice details: [VOICE.md](./VOICE.md). Manual test and demo script: [DEMO.md](./DEMO.md).
 
 ## 1. Summary
 
@@ -14,7 +14,10 @@ Updated 2026-11-07. PRD section numbers refer to [PRD.md](./PRD.md). What is lef
 | Voice assistant (multi-step, follow-ups, spoken confirm, exact-amount checkpoint) | Working, 40 of 40 fixtures; browser microphone untested |
 | ₹ display with USD settlement | Working |
 | CSV import (workers, deliveries) | Working |
-| Authentication and roles | **Not built** |
+| Authentication and roles (Supabase Auth: owner, supervisor, worker) | Working |
+| Zoho HRMS import (OAuth connect, employees, attendance, repeatable sync) | Built; verified against a stand-in serving your real exports; **not yet run against your live Zoho portal** |
+| Two separate datasets (Demo and Zoho HRMS) with a switch | Working |
+| UI kit, toasts, sounds, settings, login and legal pages | Working |
 | Database | JSON file (not Postgres) |
 
 ## 2. Verified against real services (sandbox)
@@ -33,8 +36,12 @@ Updated 2026-11-07. PRD section numbers refer to [PRD.md](./PRD.md). What is lef
 | `/attendance` | Per-day status buttons, overtime hours, units; "mark remaining present" |
 | `/incentives` | Live payout summary per worker (base, overtime, performance, delivery tiers, attendance bonus), rules editor with delivery tiers and rules version, submit for approval (shows how many are Needs Review) |
 | `/payouts` | **Needs review** card with reasons, awaiting approval with per-worker breakdown and rule version, bulk approve and reject with a confirmation, decision history |
-| `/transactions` | Status tabs, ₹ amount with the USD amount sent to PayPal, failure reasons, Retry, automatic status refresh every 4 s while anything is processing |
+| `/transactions` | Status tabs (All, Processing, **Awaiting sign-up**, Completed, Failed), ₹ amount with the USD amount sent to PayPal, failure reasons, Retry, **Cancel and refund** for unclaimed payments, automatic status refresh every 4 s while anything is processing (every 60 s while payments only wait for a sign-up) |
 | Voice panel (every screen) | Conversation, plan card with step status, Confirm and Cancel, mic, typed input, New conversation, voice-reply toggle |
+| `/integrations` | **Zoho HRMS**: status, Connect Zoho, Sync now, disconnect, last sync result, setup steps (owner only) |
+| `/settings` | Per-device preferences: sounds, click sounds, volume, payment alerts |
+| `/me` | Worker self-service: own attendance, earnings, payment history |
+| `/login`, `/terms`, `/privacy` | Sign in (Supabase Auth) and the public legal pages |
 | `/checkout` | PayPal Orders checkout demo page (placeholder user, not part of the main flow) |
 
 ## 4. API inventory
@@ -53,6 +60,13 @@ Updated 2026-11-07. PRD section numbers refer to [PRD.md](./PRD.md). What is lef
 | `POST /api/voice-input`, `/api/voice-output` | ElevenLabs speech-to-text and text-to-speech |
 | `POST/GET /api/voice/turn` | One conversational turn; restore a session |
 | `GET/DELETE /api/voice/metrics` | Voice quality metrics |
+| `GET/POST /api/workspace` | Which dataset is active; owners switch between `demo` and `zoho` |
+| `GET /api/zoho/status` | Zoho configuration, connection, last sync, dataset size (owner) |
+| `GET /api/zoho/connect`, `/api/zoho/callback` | Start and finish the Zoho sign-in (owner; one-time `state` cookie) |
+| `POST /api/transactions/[id]/cancel` | Cancel an unclaimed payment and refund it (owner) |
+| `POST /api/workers/sandbox-emails` | Give employees with no PayPal email a sandbox test address; never overwrites (owner) |
+| `GET /api/export/sandbox-accounts` | CSV in PayPal's bulk sandbox-account template, 40 per file via `?part=` (owner) |
+| `POST /api/zoho/sync`, `DELETE /api/zoho/sync` | Import from Zoho; forget the stored tokens (owner) |
 | `POST /api/intent` | **Legacy** single-intent route, unused by the UI (to be removed) |
 
 ## 5. Voice control
@@ -91,12 +105,46 @@ Full details in [VOICE.md](./VOICE.md).
 - Voice sessions and metrics are in memory (lost on restart).
 
 ## 9. Known limitations
-- No authentication or roles; anyone who can reach the app can approve payouts.
 - JSON file database; one process only.
 - The voice assistant needs the Groq model; Groq's free tier allows 8,000 tokens per minute per model, so a burst of turns can wait or fall back to the smaller model.
 - A flow cannot name a worker that an earlier step in the same sentence creates.
-- "Today" and the pay period are fixed constants (3 Nov 2026, 21 Oct to 3 Nov).
+- The Demo dataset is pinned to fixed dates (3 Nov 2026, period 21 Oct to 3 Nov) so the trained demo always looks the same. The Zoho dataset uses the real date (India time) and the calendar month.
+- The active dataset is one global switch for the whole server, not per browser session.
 - Legacy single-intent code (`/api/intent`, `voice-commands.ts`) is still in the repo.
 
 ## 10. Environment
 `.env.example` documents every variable, including `INR_PER_USD` and `VOICE_PLANNER_MODELS`.
+
+## 11. Authentication and roles (added by the team, 2026-11-11)
+- **Login:** Supabase Auth (email and password). `proxy.ts` refreshes the session and sends signed-out visitors to `/login`; pages and route handlers verify the session and role again (`app/lib/auth/dal.ts`, `app/lib/server/http.ts`).
+- **Roles:** owner (everything, including approving and moving money), supervisor (attendance, prepare payouts by voice; no money), worker (only `/me`). Owner-only API routes return 403 to other roles, and the voice assistant refuses owner-only steps for supervisors.
+- **Schema:** relational schema with row-level security in `supabase/migrations/`, demo logins in `supabase/seed.sql`. Business data itself still lives in the JSON files; Supabase holds logins and roles.
+- **UI:** shared component kit, toasts, quiet interaction sounds and payment alerts, settings page, skeleton loading states, MIT license.
+
+## 12. Zoho HRMS integration (added 2026-11-12)
+Lets a business that runs HR on Zoho People start paying through BolPay without re-keying people.
+
+**Two datasets.** The app now has two fully separate workspaces behind one switch in the sidebar (owner only): **Demo** (the trained 25-rider Bengaluru dataset, unchanged) and **Zoho HRMS** (starts empty, filled by a sync). Each has its own workers, attendance, payouts, transactions, rules and PayPal batch ids (`.data/db.json` and `.data/zoho.json`). Every screen, payout flow and the voice assistant work on whichever dataset is active, because everything reads through `getDb()`; "today" and the pay period come from `getToday()` and `getPeriod()` (`app/lib/server/context.ts`).
+
+**Connect.** The owner presses Connect Zoho on `/integrations`: OAuth 2.0 authorization-code flow against `accounts.zoho.in` with a one-time `state` cookie. Tokens are stored server-side in `.data/integrations.json` (never sent to the browser). A `ZOHO_REFRESH_TOKEN` in `.env` (Zoho "Self Client") works instead of the redirect flow.
+
+**Sync now** (`POST /api/zoho/sync`, `app/lib/zoho/`):
+- Employees: `GET people.zoho.in/people/api/forms/employee/getRecords`, 200 per call, paged. Mapped by `mapper.ts` (accepts both the API field names and the Zoho UI export column labels).
+- Attendance: `GET .../attendance/getUserReport` for the current month, 100 employees per call. Present, half day (under 4 hours), absent, leave types and overtime are mapped; weekends, holidays and unmarked days are skipped.
+- **Ownership rules:** Zoho owns identity (name, role, department, city, phone, joining date, active status) and the attendance of days it reports; a re-sync updates them. BolPay owns pay: the daily wage and PayPal email are set once when an employee is first imported and a sync never overwrites them.
+- **Salary:** Zoho People has no salary API (payroll is the separate Zoho Payroll product). New employees get `ZOHO_DEFAULT_DAILY_WAGE`, or a value read from a custom field named in `ZOHO_WAGE_FIELD`. HR edits wages on the Workers screen or by voice.
+- **PayPal email:** the Zoho work email by default (or `ZOHO_PAYOUT_EMAIL_FIELD`). Zoho test employees have fake `zylker.com` addresses, so sandbox payouts to them stay unclaimed until real sandbox emails are set (voice: "set Michael Johnson's PayPal email to ...").
+- **Needs Review** applies to the synced data; for Zoho employees weekends are not counted as missing, so HR is asked to mark the unmarked weekdays before payouts can be approved.
+
+**Verified:**
+- The mapper with `node scripts/zoho-mapper-check.mjs`: 6 offline checks, plus all 18 rows of the real `Employee View.xlsx` export.
+- The full sync (token refresh, paging, mapping, database writes) against a throwaway local stand-in serving the real exports (18 employees and the real attendance row of one employee). Results: 18 created; a second sync 0 created and 18 updated; an edited wage and PayPal email survived the re-sync; attendance landed on the right employee; Needs Review flagged the unmarked weekdays and not the weekends; the voice assistant planned and answered correctly on the Zoho dataset ("today" = the real date); the Demo dataset was unchanged (25 workers, 24 payouts).
+- **Not verified:** a run against the live Zoho portal (needs the owner's Client ID and Secret), and the exact OAuth scope name for attendance (`ZOHOPEOPLE.attendance.READ` is the default; if Zoho rejects it, use `ZOHOPEOPLE.attendance.ALL`).
+
+## 13. Unclaimed payments, sandbox accounts and sync fixes (2026-11-12)
+- **Awaiting PayPal sign-up.** When an employee's email has no PayPal account, PayPal accepts the payout, emails them a sign-up link and reports `UNCLAIMED` (error `RECEIVER_UNREGISTERED`); the money is held for 30 days and then returns to you. Before, the app showed this as "processing" forever and its 4-second polling never stopped. It is now a separate `unclaimed` transaction status with a plain explanation, shown in amber, counted separately, and checked only once a minute. It becomes `completed` on its own when the recipient claims it. Verified on the real payment to `ankrutisharma@gmail.com`.
+- **Cancel and refund** (owners): calls PayPal's cancel-unclaimed-item API. **Not verified:** the PayPal sandbox answered this call with `INTERNAL_SERVICE_ERROR` on repeated tries for valid unclaimed items (it also requires the whole batch to be in `SUCCESS` status first), so the app shows PayPal's reference and says unclaimed money returns automatically after 30 days. The Retry button then re-sends after the PayPal email is fixed.
+- **PayPal accounts card on Integrations.** Shows how many active employees have a PayPal email and offers two sandbox testing tools: give employees with no email a sandbox address (`bolpay-<employee id>@personal.example.com`, only fills empty ones), and download a CSV in PayPal's bulk template (up to 40 per file) to upload at developer.paypal.com → Testing tools → Sandbox accounts → Create bulk accounts. Verified on the Zoho dataset (18 addresses assigned, CSV columns match the template, data restored afterwards).
+- **No API for creating or deleting PayPal accounts.** PayPal exposes none for sandbox (dashboard and bulk CSV only), and a live account can never be created for someone else. In production the sign-up link PayPal emails is the supported route.
+- **Zoho emails.** Zoho returns an empty `EmailID` for the sample employees (the export's "Email address" is not on the employee form), so only employees whose profile has an email get one. A later sync now fills an *empty* PayPal email when Zoho gains one; an email you set is never overwritten.
+- **Screen stayed empty after Sync now.** The screens keep their data in memory and only loaded it once, so after a sync the Workers page still showed the old list until the page was reloaded. Sync now (and the sandbox-email button) now hands the fresh server data to the screens. Verified with a live sync from the screen: 20 employees updated, 0 duplicated, 150 attendance records.

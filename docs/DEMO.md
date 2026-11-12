@@ -98,3 +98,16 @@ Record a backup video of a clean run first, in case the network fails during jud
 - **Mic button does nothing:** use Chrome, allow microphone access, and use `localhost`, not a LAN IP.
 - **Weird state:** stop the server and delete `.data`.
 - **Webhooks:** not set up. The page's polling replaces them.
+
+## 7. Zoho HRMS import (optional second dataset)
+1. Complete the one-time setup in the README (Zoho Client ID and Secret in `.env`).
+2. Owner: **Integrations → Connect Zoho → Sync now**. The result card shows employees created and attendance records imported.
+3. Switch the sidebar **Dataset** to **Zoho HRMS**. Workers shows the synced employees (department, city, joining date), all with the default daily wage and their Zoho email.
+4. Attendance is mostly empty for test employees, so say: **"Mark everyone present on weekdays this month"** or use the Attendance screen. Until weekdays are marked, **Payouts → Needs review** lists everyone, which is the safeguard working.
+5. Give a few employees real sandbox accounts: **"Set Michael Johnson's PayPal email to bolpay-worker-1@personal.example.com"**, **"Set Michael Johnson's daily wage to two thousand"**.
+6. **"Prepare payouts for Michael Johnson, then approve Michael Johnson's payout"**: confirm the exact-amount checkpoint, watch the payment complete on Transactions.
+7. Change something in Zoho (a status or a department), press **Sync now** again, and show that identity updates while the wage and PayPal email you set are kept.
+8. Switch back to **Demo** to show the trained dataset is untouched.
+
+### Zoho demo: getting recipients that can be paid
+Zoho's sample employees have no email, so give them test accounts first (sandbox only; PayPal has no API for this): **Integrations → PayPal accounts for payouts → Give N employees a sandbox test email**, then **Download sandbox accounts CSV** and upload it at developer.paypal.com → Testing tools → Sandbox accounts → Create bulk accounts. Payments to those employees then complete. A payment to an email with no PayPal account shows **Awaiting PayPal sign-up** on Transactions (PayPal emails the recipient a link); on live PayPal that is the normal first-payment route.

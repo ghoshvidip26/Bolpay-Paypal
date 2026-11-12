@@ -1,6 +1,13 @@
 # What is remaining
 
-Updated 2026-11-07. **Status update 2026-11-11** (see the list just below).
+Updated 2026-11-07. **Status updates: 2026-11-11 and 2026-11-12** (see the list just below).
+
+**Done on 2026-11-12 (second update):**
+- Unclaimed payments are a real state (no more endless processing and polling); PayPal accounts card, sandbox account CSV export, sandbox test emails; screens refresh after a sync; empty PayPal emails fill on a later sync.
+
+**Done on 2026-11-12:**
+- **Z-00** Zoho People import built (OAuth connect, employees, attendance, repeatable sync) with a separate Zoho dataset and a dataset switch; see section 3 (Z) below for what is still open.
+- Needs Review no longer counts weekends for Zoho employees.
 
 **Done on 2026-11-11:**
 - **A-01** Login with Supabase Auth (owner, supervisor, worker demo logins); every `/api/*` route needs a session (401 otherwise); the webhook stays open and signature-verified.
@@ -21,7 +28,7 @@ Size: **S** under 1 hour, **M** a few hours, **L** a day or more. Owners follow 
 
 | PRD § | Requirement | Status | To-dos |
 |---|---|---|---|
-| 5.1 | Authentication, roles, business scoping | **Missing** | A-01 to A-05 |
+| 5.1 | Authentication, roles, business scoping | **Done** (Supabase Auth, 3 roles); business scoping open | A-03 |
 | 5.2 | Workforce management (add, view, history, payment account) | Mostly done | U-04, U-05, D-05 |
 | 5.3 | Voice interface (Scribe, languages, clarify, TTS) | Done for English, Hindi, Hinglish; browser mic untested | V-01 to V-10 |
 | 5.4 | AI intent processing, validation, no LLM money | **Done**, 40 of 40 eval fixtures | V-11, V-12 |
@@ -31,9 +38,10 @@ Size: **S** under 1 hour, **M** a few hours, **L** a day or more. Owners follow 
 | 5.8 | Voice payout status updates | **Done** | V-06 |
 | 6 | End-to-end flow | Works locally, not yet rehearsed from a clean clone | S-06, G-02 |
 | 8 | Architecture (Express + Postgres + Prisma) | **Differs**: Next.js route handlers + JSON file | B-01 |
-| 9 | MVP must-haves | All present except demo auth | A-01 |
+| 9 | MVP must-haves | All present | none |
 | 10 | Security and reliability | Partial | A-01 to A-08 |
 | 11 | Success metrics | Demonstrable | G-02 |
+| 16 (new) | HRMS migration: import employees and attendance from Zoho People | **Built**, verified against a stand-in; **live run pending** | Z-01 to Z-14 |
 
 ## 2. Critical path to submission (suggested order)
 
@@ -169,6 +177,28 @@ Size: **S** under 1 hour, **M** a few hours, **L** a day or more. Owners follow 
 | G-04 | P1 | S | Integration | Fill the gaps in the PRD (see §15 of [PRD.md](./PRD.md): extended requirements). |
 | G-05 | P2 | S | Backend | API reference generated from the OpenAPI spec (S-11). |
 | G-06 | P2 | S | Integration | A short "What we learned / limits" section for the Devpost write-up (rate limits, sandbox currency, India account block). |
+
+### Z. Zoho HRMS integration (new)
+| ID | Pri | Size | Owner | Task and acceptance |
+|---|---|---|---|---|
+| Z-01 | **P0** | S | You | **Run it against your live portal.** api-console.zoho.in → Server-based Applications → redirect `http://localhost:3000/api/zoho/callback` → put `ZOHO_CLIENT_ID` and `ZOHO_CLIENT_SECRET` in `.env` (see `.env.example`) → restart → Integrations → Connect Zoho → Sync now. Acceptance: your 18 employees appear under the Zoho HRMS dataset. If anything fails, the page shows Zoho's message. |
+| Z-02 | P0 | S | You | **Confirm the attendance scope.** Default is `ZOHOPEOPLE.attendance.READ`; if Zoho answers `invalid_scope`, set `ZOHO_SCOPES=ZOHOPEOPLE.forms.READ,ZOHOPEOPLE.attendance.ALL`. Employees import even if attendance is refused (a warning is shown). |
+| Z-03 | P0 | S | Integration | **Make the demo data meaningful:** your Zoho test employees have almost no attendance. Either enter check-ins or absences in Zoho, or demonstrate "mark everyone present" by voice on the Zoho dataset, then prepare, approve and pay. Give a few employees sandbox PayPal emails (voice: "set Michael Johnson's PayPal email to bolpay-worker-1@personal.example.com") so payouts complete. |
+| Z-04 | P1 | M | Backend | **Leave data:** import approved leave from the Zoho `leave` form (or rely on the attendance report's leave statuses, which are already mapped). Verify against real leave records. |
+| Z-05 | P1 | M | Backend | **Salary:** Zoho People has none. Options: a custom field (`ZOHO_WAGE_FIELD`, already supported), the Zoho Payroll API (separate product and scopes), or a CSV of wages. Document the choice in the pitch. |
+| Z-06 | P1 | S | Backend | **Scheduled sync** (hourly) and incremental fetch using the `modifiedtime` parameter, so HR does not press a button. |
+| Z-07 | P1 | M | Backend | **Per-business connections:** tokens are one global record in `.data/integrations.json`; store them per business (Supabase) and encrypt at rest. |
+| Z-08 | P1 | M | Backend | **Per-user dataset switch:** the Demo / Zoho choice is global for the server. Make it per session (cookie) before more than one person uses it. |
+| Z-09 | P1 | S | Backend | **Employees removed from Zoho** are not detected (only the active or exited status is). Mark workers missing from a full sync as inactive. |
+| Z-10 | P1 | S | Frontend | Show a "Zoho" badge and department on the Workers screen, and a "synced from Zoho" note on read-only fields. |
+| Z-11 | P2 | M | Backend | **Other HRMS connectors** (Keka, Darwinbox, BambooHR, greytHR) behind the same mapper and sync interface; the mapper already accepts column labels from UI exports. |
+| Z-12 | P2 | M | Backend | **File import fallback** for portals without API access: upload Zoho's Employee View and attendance report exports (`.xlsx`, `.xls`). Needs a spreadsheet parser dependency, deliberately not added for the hackathon. |
+| Z-13 | P2 | S | Backend | Shift calendar import (Zoho `Shift_CalendarView_Report`) to know each employee's weekly off days instead of assuming Saturday and Sunday. |
+| Z-15 | P1 | S | You | **Verify Cancel and refund.** The PayPal sandbox returns `INTERNAL_SERVICE_ERROR` for the cancel-unclaimed-item call (debug ids f19517027c1c9, f761552289c16, ca592a3091eba). Ask PayPal developer support, or try on a live account with a tiny amount. Until then the button reports the error honestly. |
+| Z-16 | P1 | M | Backend | **Real recipients on live PayPal:** unclaimed payments rely on the recipient reading PayPal's email. Add a "resend / remind" note and an unclaimed-age column (days left of the 30). |
+| Z-17 | P1 | S | Backend | **Fill emails in Zoho:** the sample employees have no `EmailID` on the Employee form. Either add emails there (a later sync fills empty PayPal emails) or paste them in BolPay. A bulk "import PayPal emails" CSV would save time (not built). |
+| Z-18 | P2 | S | Backend | When migrating transactions to Postgres add `unclaimed` to the status enum and `paypal_item_id` and `note` columns (`supabase/migrations/`, `database.types.ts`). |
+| Z-14 | P2 | S | Backend | Tests for the sync (mapper checks exist: `node scripts/zoho-mapper-check.mjs`); add a recorded-response test for `fetchEmployeeRows` and `fetchAttendance`. |
 
 ### T. Cleanup and technical debt
 | ID | Pri | Size | Owner | Task and acceptance |

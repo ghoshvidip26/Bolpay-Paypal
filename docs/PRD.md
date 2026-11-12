@@ -199,3 +199,36 @@ Voice is the product's main strength: the whole workflow can be run by voice.
 - Zero payments sent without an explicit confirmation across all test runs.
 - Webhook-driven status updates arrive without pressing sync (P-01).
 
+## 16. Version 1.2: HRMS integration and delivered access control (2026-11-12)
+
+### 16.1 Delivered since v1.1
+- **Access control (§5.1):** Supabase Auth login with three roles (owner, supervisor, worker). Owners approve and move money; supervisors mark attendance and prepare payouts; workers see only their own pay page. Row-level security schema in `supabase/migrations/`.
+- **Product polish:** shared UI kit, toasts and payment alerts, quiet interaction sounds, settings page, skeleton loading, legal pages, BolPay branding throughout, MIT license, production build passing.
+
+### 16.2 Why an HRMS integration
+BolPay's promise is to replace the manual work of paying people. A business will only try it if it does not have to re-enter its team. Most already keep employees and attendance in an HR system, so the fastest path to a real trial is to import from there and let HR run payouts in BolPay while the rest of the platform matures. For the hackathon the integration is Zoho People; the demo dataset stays for the trained demo.
+
+### 16.3 Requirements
+- **HR-1 Connect.** The owner signs in with Zoho (OAuth 2.0, read-only scopes). Tokens are stored server-side only; a one-time state value protects the redirect.
+- **HR-2 Import.** Employees become workers and the current period's attendance becomes attendance records. A sync is repeatable and idempotent; a manual "Sync now" is the minimum, scheduled sync is the target.
+- **HR-3 Ownership.** The HR system owns identity and attendance; BolPay owns pay settings (daily wage, PayPal account). A sync never overwrites pay settings.
+- **HR-4 Separate datasets.** Imported data lives in its own workspace, switchable from the sidebar, so the trained demo is never disturbed and the real import can be shown on its own.
+- **HR-5 Salary honesty.** Zoho People exposes no salary. New employees get a configurable default wage (or a value from a named custom field) that HR edits; payroll products are a later integration.
+- **HR-6 Same controls.** Needs Review, approvals with exact amounts, PayPal payouts, audit log and the voice assistant apply unchanged to imported data. Weekends are not treated as missing attendance for imported employees.
+- **HR-7 Safety.** Only owners can connect, sync or switch datasets. Sync failures are shown with the provider's message; a partial result (employees without attendance) is reported, not hidden.
+- **HR-9 Honest payment states.** A payout to an email with no PayPal account is shown as awaiting the recipient's sign-up (not as processing), is checked infrequently, completes when claimed, and can be cancelled and refunded. PayPal readiness (how many employees have a payout email) is visible before paying.
+- **HR-8 Portability.** The mapping accepts both the HR system's API field names and its UI export column labels, so more systems (Keka, Darwinbox, BambooHR, greytHR) can be added behind the same sync interface.
+
+### 16.4 Success metrics
+- An owner connects a Zoho account and imports every employee in under two minutes, with no manual entry.
+- A second sync changes nothing the owner edited (wage, PayPal email) and updates what Zoho changed.
+- A voice command ("mark everyone present today, then prepare payouts") works on imported employees exactly as on the demo data.
+- The demo dataset is unchanged after any number of syncs and switches.
+
+### 16.5 Risks
+| Risk | Mitigation |
+|---|---|
+| Zoho scope names or endpoints differ from the documentation | Scopes are configurable (`ZOHO_SCOPES`); employees import even if attendance is refused; errors show Zoho's message |
+| Test employees have no attendance or salary | Mark attendance by voice on the imported data; default wage is editable; document in the pitch |
+| Fake employee emails cannot receive sandbox payouts | Set sandbox PayPal emails by voice on a few employees |
+| One global dataset switch and one stored connection | Per-user switch and per-business tokens (Z-07, Z-08) |

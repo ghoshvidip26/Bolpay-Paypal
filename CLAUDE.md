@@ -50,3 +50,9 @@ BolPay — a hackathon app for merchants to manage hourly/daily workers: attenda
 - Add an action: catalog entry plus a `case` in `runStep` (executor.ts) plus eval fixtures. Test with `npm run test:voice` (needs the dev server and a Groq key). Details: `docs/VOICE.md`.
 - Groq's free tier is 8,000 tokens per minute per model, so keep the planner prompt small.
 - Turbopack sometimes serves a stale copy of an edited server module; if a function "is not a function" right after an edit, change the file's content and retry.
+
+## Zoho People import and datasets
+- Two workspaces, `demo` and `zoho`, each its own JSON file (`.data/db.json`, `.data/zoho.json`). Always go through `getDb()` (it returns the active workspace); `getDb("zoho")` reaches the other one explicitly. The active one is stored in `.data/workspace.json`.
+- Use `getToday()` and `getPeriod()` from `app/lib/server/context.ts`, never constants: the demo dataset is pinned to fixed dates, the Zoho dataset uses the real date and month.
+- `app/lib/zoho/`: `mapper.ts` (pure, dependency-free, checked by `node scripts/zoho-mapper-check.mjs`), `client.ts` (OAuth, token store `.data/integrations.json`, API calls), `sync.ts` (writes the Zoho workspace). Routes: `/api/zoho/{status,connect,callback,sync}` and `/api/workspace`, all owner-only. UI: `/integrations` and the sidebar `WorkspaceSwitch`.
+- A sync updates Zoho-owned fields (identity, attendance) and never overwrites `dailyWage` or `payoutEmail`.
