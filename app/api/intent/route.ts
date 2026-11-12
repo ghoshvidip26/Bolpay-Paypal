@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { IntentModelError } from "@/app/lib/ai/intent";
 import { planFromText } from "@/app/lib/server/intent-service";
 import type { IntentContext } from "@/app/lib/merchant/intent-types";
-import { guard, STAFF } from "@/app/lib/server/http";
+import { guard, STAFF, withRequestWorkspace } from "@/app/lib/server/http";
 
 const MAX_TEXT = 500;
 
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   }
 
   try {
-    return NextResponse.json({ plan: await planFromText(text, context) });
+    return NextResponse.json({ plan: await withRequestWorkspace(() => planFromText(text, context)) });
   } catch (err) {
     if (err instanceof IntentModelError) {
       const status = err.kind === "not_configured" ? 503 : err.kind === "rate_limited" ? 429 : 502;

@@ -231,4 +231,4 @@ BolPay's promise is to replace the manual work of paying people. A business will
 | Zoho scope names or endpoints differ from the documentation | Scopes are configurable (`ZOHO_SCOPES`); employees import even if attendance is refused; errors show Zoho's message |
 | Test employees have no attendance or salary | Mark attendance by voice on the imported data; default wage is editable; document in the pitch |
 | Fake employee emails cannot receive sandbox payouts | Set sandbox PayPal emails by voice on a few employees |
-| One global dataset switch and one stored connection | Per-user switch and per-business tokens (Z-07, Z-08) |
+| One stored Zoho connection for the server | Per-business tokens (Z-07). The dataset switch is already per person (Z-08 done) |

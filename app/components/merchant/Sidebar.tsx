@@ -47,7 +47,7 @@ export function Sidebar({ role, pendingCount }: { role: Role; pendingCount: numb
           );
         })}
       </nav>
-      {role === "owner" && <WorkspaceSwitch />}
+      <WorkspaceSwitch />
     </>
   );
 }

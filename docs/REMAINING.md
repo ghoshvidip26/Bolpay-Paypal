@@ -188,7 +188,7 @@ Size: **S** under 1 hour, **M** a few hours, **L** a day or more. Owners follow 
 | Z-05 | P1 | M | Backend | **Salary:** Zoho People has none. Options: a custom field (`ZOHO_WAGE_FIELD`, already supported), the Zoho Payroll API (separate product and scopes), or a CSV of wages. Document the choice in the pitch. |
 | Z-06 | P1 | S | Backend | **Scheduled sync** (hourly) and incremental fetch using the `modifiedtime` parameter, so HR does not press a button. |
 | Z-07 | P1 | M | Backend | **Per-business connections:** tokens are one global record in `.data/integrations.json`; store them per business (Supabase) and encrypt at rest. |
-| Z-08 | P1 | M | Backend | **Per-user dataset switch:** the Demo / Zoho choice is global for the server. Make it per session (cookie) before more than one person uses it. |
+| Z-08 | Done | M | Backend | ~~**Per-user dataset switch**~~ Done: each person's Demo / Zoho choice is their own cookie, so switching never changes what others see. |
 | Z-09 | P1 | S | Backend | **Employees removed from Zoho** are not detected (only the active or exited status is). Mark workers missing from a full sync as inactive. |
 | Z-10 | P1 | S | Frontend | Show a "Zoho" badge and department on the Workers screen, and a "synced from Zoho" note on read-only fields. |
 | Z-11 | P2 | M | Backend | **Other HRMS connectors** (Keka, Darwinbox, BambooHR, greytHR) behind the same mapper and sync interface; the mapper already accepts column labels from UI exports. |

@@ -1,6 +1,8 @@
 import "server-only";
+import { cookies } from "next/headers";
 import { connection, NextResponse } from "next/server";
 import { getSession, type Role, type SessionContext } from "@/app/lib/auth/dal";
+import { parseWorkspace, runInWorkspace, WORKSPACE_COOKIE, type Workspace } from "./db";
 import { getSnapshot, ServiceError } from "./service";
 
 /** Owners and supervisors run the business; workers only see their own pay page. */
@@ -49,13 +51,25 @@ export async function respond(
   // The database is read synchronously from disk, so without this Cache Components would
   // prerender GET handlers at build time and serve a frozen snapshot.
   await connection();
-  try {
-    await requireApiRole(roles);
-    const extra = await fn();
-    return NextResponse.json({ state: getSnapshot(), ...(extra ?? {}) });
-  } catch (err) {
-    if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.status });
-    console.error(err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
-  }
+  return withRequestWorkspace(async () => {
+    try {
+      await requireApiRole(roles);
+      const extra = await fn();
+      return NextResponse.json({ state: getSnapshot(), ...(extra ?? {}) });
+    } catch (err) {
+      if (err instanceof ServiceError) return NextResponse.json({ error: err.message }, { status: err.status });
+      console.error(err);
+      return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    }
+  });
+}
+
+/** The dataset this caller chose (their own cookie), defaulting to the demo data. */
+export async function requestWorkspace(): Promise<Workspace> {
+  return parseWorkspace((await cookies()).get(WORKSPACE_COOKIE)?.value);
+}
+
+/** Runs a route's work against the caller's own dataset. Routes that use respond() get this automatically. */
+export async function withRequestWorkspace<T>(fn: () => Promise<T>): Promise<T> {
+  return runInWorkspace(await requestWorkspace(), fn);
 }

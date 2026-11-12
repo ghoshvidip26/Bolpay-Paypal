@@ -6,8 +6,8 @@ import { Segmented } from "./ui";
 type Workspace = "demo" | "zoho";
 
 /**
- * Switches the whole app between the trained demo dataset and the data synced from Zoho People.
- * The two datasets are fully separate (own workers, attendance, payouts, transactions).
+ * Switches between the trained demo dataset and the data synced from Zoho People, for the person using it
+ * only (a cookie). The two datasets are fully separate (own workers, attendance, payouts, transactions).
  */
 export function WorkspaceSwitch() {
   const [workspace, setWorkspace] = useState<Workspace | undefined>();
@@ -31,7 +31,15 @@ export function WorkspaceSwitch() {
     setBusy(true);
     try {
       const res = await fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace: next }) });
-      if (res.ok) window.location.assign(new URL("/dashboard", window.location.origin).href); // a full reload so every screen loads the other dataset
+      if (res.ok) {
+        // A voice plan made on one dataset must not be confirmed on the other, so start a fresh conversation.
+        try {
+          sessionStorage.removeItem("bolpay.voice.session");
+        } catch {
+          /* storage blocked: nothing saved anyway */
+        }
+        window.location.assign(new URL("/dashboard", window.location.origin).href); // a full reload so every screen loads the other dataset
+      }
     } finally {
       setBusy(false);
     }
@@ -51,6 +59,7 @@ export function WorkspaceSwitch() {
           { value: "zoho", label: "Zoho HRMS", dot: "bg-sky-600" },
         ]}
       />
+      <p className="mt-1.5 text-[11px] text-slate-400">Changes only your view.</p>
     </div>
   );
 }

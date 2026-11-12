@@ -1,5 +1,5 @@
 import { connection } from "next/server";
-import { guard, OWNER } from "@/app/lib/server/http";
+import { guard, OWNER, withRequestWorkspace } from "@/app/lib/server/http";
 import { sandboxAccountsCsv } from "@/app/lib/server/sandbox";
 
 /**
@@ -11,7 +11,7 @@ export async function GET(req: Request) {
   const denied = await guard(OWNER);
   if (denied) return denied;
   const part = Math.max(1, Number(new URL(req.url).searchParams.get("part")) || 1);
-  const { csv, parts } = sandboxAccountsCsv(part);
+  const { csv, parts } = await withRequestWorkspace(async () => sandboxAccountsCsv(part));
   return new Response(csv, {
     headers: {
       "Content-Type": "text/csv; charset=utf-8",

@@ -1,9 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
-import { useSearchParams } from "next/navigation";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatDateTime } from "@/app/lib/merchant/format";
 import { useStore, type Snapshot } from "@/app/lib/merchant/store";
+import { useToast } from "../../feedback/Toaster";
 import { Badge, Button, buttonClass, Card, Notice, PageHeader, Stat, Stats } from "../ui";
 
 interface Status {
@@ -33,11 +34,12 @@ interface SyncSummary {
 
 export function ZohoView() {
   const params = useSearchParams();
+  const router = useRouter();
   const store = useStore();
+  const toast = useToast();
   const [status, setStatus] = useState<Status | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState<"sync" | "disconnect" | "open" | "emails" | null>(null);
-  const [result, setResult] = useState<{ ok: boolean; message: string; sync?: SyncSummary } | null>(null);
 
   const load = useCallback(async () => {
     const res = await fetch("/api/zoho/status");
@@ -54,21 +56,31 @@ export function ZohoView() {
 
   async function sync() {
     setBusy("sync");
-    setResult(null);
     const res = await fetch("/api/zoho/sync", { method: "POST" });
     const d = (await res.json().catch(() => ({}))) as { sync?: SyncSummary; state?: Snapshot; error?: string };
     setBusy(null);
     // The screens keep their data in memory, so hand them the fresh server data or they show the old list until a reload.
     if (d.state) store.applySnapshot(d.state);
-    setResult(res.ok && d.sync ? { ok: true, message: "Sync finished.", sync: d.sync } : { ok: false, message: d.error ?? "The sync failed." });
+    if (res.ok && d.sync) {
+      const s = d.sync;
+      const warn = s.warnings.length ? ` ${s.warnings.length} warning${s.warnings.length === 1 ? "" : "s"}, see Last sync.` : "";
+      toast({
+        tone: s.warnings.length ? "warn" : "success",
+        title: `Synced ${s.employees.total} employee${s.employees.total === 1 ? "" : "s"} from Zoho`,
+        description: `${s.employees.created} new, ${s.employees.updated} updated${s.attendance ? `, ${s.attendance.records} attendance records` : ""}.${warn}`,
+      });
+    } else {
+      toast({ tone: "error", title: "The Zoho sync failed", description: d.error });
+    }
     await load();
   }
 
   async function disconnect() {
     setBusy("disconnect");
-    await fetch("/api/zoho/sync", { method: "DELETE" });
+    const res = await fetch("/api/zoho/sync", { method: "DELETE" });
     setBusy(null);
-    setResult({ ok: true, message: "Disconnected from Zoho. The employees you already synced are still in the Zoho dataset." });
+    if (res.ok) toast({ tone: "info", title: "Disconnected from Zoho", description: "Employees you already synced stay in the Zoho dataset." });
+    else toast({ tone: "error", title: "Could not disconnect from Zoho" });
     await load();
   }
 
@@ -78,19 +90,43 @@ export function ZohoView() {
     const d = (await res.json().catch(() => ({}))) as { sandbox?: { assigned: number }; state?: Snapshot; error?: string };
     setBusy(null);
     if (d.state) store.applySnapshot(d.state);
-    setResult(res.ok && d.sandbox ? { ok: true, message: d.sandbox.assigned ? `Gave ${d.sandbox.assigned} employees a sandbox test email. Download the accounts CSV and upload it to PayPal next.` : "Every active employee already has a PayPal email." } : { ok: false, message: d.error ?? "Could not assign emails." });
+    if (res.ok && d.sandbox) {
+      toast(
+        d.sandbox.assigned
+          ? { tone: "success", title: `Gave ${d.sandbox.assigned} employees a sandbox test email`, description: "Next, download the accounts CSV and upload it to PayPal." }
+          : { tone: "info", title: "Every active employee already has a PayPal email" },
+      );
+    } else {
+      toast({ tone: "error", title: "Could not assign test emails", description: d.error });
+    }
     await load();
   }
 
   async function openZohoData() {
     setBusy("open");
     const res = await fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ workspace: "zoho" }) });
-    if (res.ok) window.location.assign(new URL("/workers", window.location.origin).href);
-    else setBusy(null);
+    if (res.ok) {
+      try {
+        sessionStorage.removeItem("bolpay.voice.session"); // a voice plan from the demo data must not run on Zoho data
+      } catch {
+        /* storage blocked */
+      }
+      window.location.assign(new URL("/workers", window.location.origin).href);
+    } else setBusy(null);
   }
 
+  // Zoho's sign-in redirects back with ?zoho=...; announce it once, then drop it from the URL.
   const flag = params.get("zoho");
   const reason = params.get("reason");
+  const announced = useRef(false);
+  useEffect(() => {
+    if (!flag || announced.current) return;
+    announced.current = true;
+    if (flag === "connected") toast({ tone: "success", title: "Connected to Zoho People", description: "Press Sync now to import your employees." });
+    else if (flag === "not_configured") toast({ tone: "warn", title: "Zoho is not configured yet", description: "Add the keys from the setup steps to .env.local, then restart the server." });
+    else if (flag === "error") toast({ tone: "error", title: "Zoho sign-in did not finish", description: reason ?? undefined });
+    router.replace("/integrations", { scroll: false });
+  }, [flag, reason, router, toast]);
 
   return (
     <>
@@ -106,9 +142,6 @@ export function ZohoView() {
         }
       />
 
-      {flag === "connected" && <Notice tone="success" className="mb-4">Connected to Zoho People. Press Sync now to import your employees.</Notice>}
-      {flag === "not_configured" && <Notice tone="warn" className="mb-4">Zoho is not configured yet. Add the keys below to .env and restart the server.</Notice>}
-      {flag === "error" && <Notice tone="error" className="mb-4">Zoho sign-in did not finish{reason ? `: ${reason}` : ""}.</Notice>}
       {loadError && <Notice tone="error" className="mb-4">{loadError}</Notice>}
 
       <Card
@@ -145,16 +178,15 @@ export function ZohoView() {
               )}
             </div>
             {status.connectedAt && <p className="text-xs text-slate-500">Connected {formatDateTime(status.connectedAt)}.</p>}
+            {status.lastSync && (
+              <div className="rounded-md border border-slate-200 bg-slate-50/60 px-3 py-2.5">
+                <p className="text-xs font-medium text-slate-500">Last sync, {formatDateTime(status.lastSync.at)}</p>
+                <SyncDetails s={status.lastSync} />
+              </div>
+            )}
           </div>
         )}
       </Card>
-
-      {result && (
-        <Notice tone={result.ok ? "success" : "error"} className="mb-4">
-          <p className="font-medium">{result.message}</p>
-          {result.sync && <SyncDetails s={result.sync} />}
-        </Notice>
-      )}
 
       {status && (
         <Stats className="mb-4">
@@ -180,9 +212,7 @@ export function ZohoView() {
               <Button disabled={busy !== null || status.workspace !== "zoho" || status.emails.withoutEmail === 0} onClick={() => void assignEmails()} title={status.workspace !== "zoho" ? "Switch the dataset to Zoho HRMS first" : undefined}>
                 {busy === "emails" ? "Assigning…" : `Give ${status.emails.withoutEmail} employees a sandbox test email`}
               </Button>
-              <a href="/api/export/sandbox-accounts" className={buttonClass("secondary")} aria-disabled={status.workspace !== "zoho" || status.emails.sandbox === 0}>
-                Download sandbox accounts CSV ({status.emails.sandbox})
-              </a>
+              <CsvDownloads accounts={status.emails.sandbox} enabled={status.workspace === "zoho"} />
             </div>
             {status.workspace !== "zoho" && <p className="text-xs text-slate-500">These act on the active dataset. Switch to Zoho HRMS in the sidebar first.</p>}
           </div>
@@ -219,9 +249,46 @@ export function ZohoView() {
   );
 }
 
+/** PayPal's bulk upload takes at most 40 accounts per file, matching the export route. */
+const BULK_LIMIT = 40;
+
+/**
+ * A real link only when there is something to download; otherwise a disabled button (a link marked
+ * aria-disabled still downloads when clicked). More than 40 accounts are split into one file per upload.
+ */
+function CsvDownloads({ accounts, enabled }: { accounts: number; enabled: boolean }) {
+  if (!enabled || accounts === 0) {
+    return (
+      <Button disabled title={!enabled ? "Switch the dataset to Zoho HRMS first" : "No employee uses a sandbox test email yet"}>
+        Download sandbox accounts CSV (0)
+      </Button>
+    );
+  }
+  const parts = Math.ceil(accounts / BULK_LIMIT);
+  if (parts === 1) {
+    return (
+      <a href="/api/export/sandbox-accounts?part=1" download className={buttonClass("secondary")}>
+        Download sandbox accounts CSV ({accounts})
+      </a>
+    );
+  }
+  return (
+    <>
+      {Array.from({ length: parts }, (_, i) => {
+        const size = i === parts - 1 ? accounts - BULK_LIMIT * i : BULK_LIMIT;
+        return (
+          <a key={i} href={`/api/export/sandbox-accounts?part=${i + 1}`} download className={buttonClass("secondary")}>
+            CSV part {i + 1} of {parts} ({size})
+          </a>
+        );
+      })}
+    </>
+  );
+}
+
 function SyncDetails({ s }: { s: SyncSummary }) {
   return (
-    <div className="mt-1 space-y-1 text-sm font-normal">
+    <div className="mt-1 space-y-1 text-sm text-slate-700">
       <p>
         {s.employees.total} employees: {s.employees.created} new, {s.employees.updated} updated, {s.employees.inactive} inactive.
       </p>

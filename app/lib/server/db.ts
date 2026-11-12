@@ -1,4 +1,5 @@
 import "server-only";
+import { AsyncLocalStorage } from "node:async_hooks";
 import fs from "node:fs";
 import path from "node:path";
 import { DEFAULT_RULES } from "@/app/lib/merchant/incentives";
@@ -41,33 +42,28 @@ export interface Db {
 
 const DIR = path.join(process.cwd(), ".data");
 const FILES: Record<Workspace, string> = { demo: path.join(DIR, "db.json"), zoho: path.join(DIR, "zoho.json") };
-const ACTIVE_FILE = path.join(DIR, "workspace.json");
-// globalThis (not module state) so every route bundle sees the same cache and the same active workspace.
-const g = globalThis as unknown as { __dbs?: Partial<Record<Workspace, Db>>; __workspace?: Workspace };
+// globalThis (not module state) so every route bundle shares the same cache and the same request scope.
+const g = globalThis as unknown as { __dbs?: Partial<Record<Workspace, Db>>; __workspaceScope?: AsyncLocalStorage<Workspace> };
+const scope = () => (g.__workspaceScope ??= new AsyncLocalStorage<Workspace>());
 
-/** The workspace the app is currently showing. Defaults to the demo data. */
+/** Cookie holding which dataset a signed-in person is viewing. A per-person view, not a permission. */
+export const WORKSPACE_COOKIE = "bolpay_dataset";
+
+/**
+ * The dataset the current request works on. Each person chooses their own (see runInWorkspace, set per
+ * request in app/lib/server/http.ts), so switching never changes what anyone else sees. Code outside a
+ * signed-in request (worker pages, PayPal webhooks) gets the demo data.
+ */
 export function getWorkspace(): Workspace {
-  if (g.__workspace) return g.__workspace;
-  let ws: Workspace = "demo";
-  try {
-    const saved = (JSON.parse(fs.readFileSync(ACTIVE_FILE, "utf8")) as { active?: string }).active;
-    if (saved === "zoho") ws = "zoho";
-  } catch {
-    /* no saved choice yet */
-  }
-  g.__workspace = ws;
-  return ws;
+  return scope().getStore() ?? "demo";
 }
 
-export function setWorkspace(ws: Workspace) {
-  g.__workspace = ws;
-  try {
-    fs.mkdirSync(DIR, { recursive: true });
-    fs.writeFileSync(ACTIVE_FILE, JSON.stringify({ active: ws }));
-  } catch (err) {
-    console.error("Could not persist the active workspace; continuing in memory", err);
-  }
+/** Runs `fn` (and everything it awaits) against one dataset. */
+export function runInWorkspace<T>(ws: Workspace, fn: () => T): T {
+  return scope().run(ws, fn);
 }
+
+export const parseWorkspace = (v: unknown): Workspace => (v === "zoho" ? "zoho" : "demo");
 
 function seed(ws: Workspace): Db {
   const base = { schemaVersion: SCHEMA_VERSION, audit: [], batchSalt: Math.random().toString(36).slice(2, 10), rules: DEFAULT_RULES };

@@ -15,7 +15,7 @@ import type {
 import { cancelPayoutItem, createPayoutBatch, getPayoutBatch, mapTransactionStatus } from "@/app/lib/paypal/payouts";
 import { isLivePayPal, PayPalError } from "@/app/lib/paypal/rest";
 import { parseCsv } from "./csv";
-import { getDb, logAudit, saveDb } from "./db";
+import { getDb, logAudit, saveDb, WORKSPACES } from "./db";
 
 export class ServiceError extends Error {
   constructor(
@@ -434,13 +434,20 @@ export async function cancelUnclaimed(id: string) {
   saveDb();
 }
 
-/** Applies a verified PAYMENT.PAYOUTS-ITEM.* webhook event. */
+/**
+ * Applies a verified PAYMENT.PAYOUTS-ITEM.* webhook event. PayPal's call carries no signed-in user, so it
+ * searches every dataset: a payout from the Zoho data must update even while people are viewing the demo.
+ * Payout ids include the period id, which differs per dataset, so a match is unambiguous.
+ */
 export function applyWebhookItem(item: { payoutId: string; transactionStatus?: string; paypalItemId?: string; error?: string }) {
-  const tx = getDb().transactions.find((t) => t.payoutId === item.payoutId);
-  if (!tx) return false;
-  applyItemStatus(tx, mapTransactionStatus(item.transactionStatus), item.paypalItemId, item.error);
-  saveDb();
-  return true;
+  for (const ws of WORKSPACES) {
+    const tx = getDb(ws).transactions.find((t) => t.payoutId === item.payoutId);
+    if (!tx) continue;
+    applyItemStatus(tx, mapTransactionStatus(item.transactionStatus), item.paypalItemId, item.error);
+    saveDb(ws);
+    return true;
+  }
+  return false;
 }
 
 /* ------------------------------ CSV import ------------------------------ */

@@ -1,7 +1,7 @@
 import { connection, NextResponse } from "next/server";
 import { getSnapshot } from "@/app/lib/server/service";
 import { handleTurn, peekSession } from "@/app/lib/voice/session";
-import { requireApiRole, STAFF } from "@/app/lib/server/http";
+import { requireApiRole, STAFF, withRequestWorkspace } from "@/app/lib/server/http";
 import { ServiceError } from "@/app/lib/server/service";
 
 async function staff() {
@@ -34,15 +34,18 @@ export async function POST(req: Request) {
   const text = typeof body.text === "string" ? body.text : undefined;
   if (text && text.length > MAX_TEXT) return NextResponse.json({ error: `Commands are limited to ${MAX_TEXT} characters.` }, { status: 413 });
   const action = body.action === "confirm" || body.action === "cancel" ? body.action : undefined;
-  const view = await handleTurn({
-    sessionId: typeof body.sessionId === "string" ? body.sessionId : null,
-    text,
-    action,
-    dryRun: body.dryRun === true,
-    reset: body.reset === true,
-    role: auth.session.role === "owner" ? "owner" : "supervisor",
+  // The plan, its checks and the money step all run on the caller's own dataset.
+  return withRequestWorkspace(async () => {
+    const view = await handleTurn({
+      sessionId: typeof body.sessionId === "string" ? body.sessionId : null,
+      text,
+      action,
+      dryRun: body.dryRun === true,
+      reset: body.reset === true,
+      role: auth.session.role === "owner" ? "owner" : "supervisor",
+    });
+    return NextResponse.json({ ...view, snapshot: getSnapshot() });
   });
-  return NextResponse.json({ ...view, snapshot: getSnapshot() });
 }
 
 /** GET ?sessionId=... restores the last turn view after a reload. */

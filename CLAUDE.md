@@ -52,7 +52,7 @@ BolPay — a hackathon app for merchants to manage hourly/daily workers: attenda
 - Turbopack sometimes serves a stale copy of an edited server module; if a function "is not a function" right after an edit, change the file's content and retry.
 
 ## Zoho People import and datasets
-- Two workspaces, `demo` and `zoho`, each its own JSON file (`.data/db.json`, `.data/zoho.json`). Always go through `getDb()` (it returns the active workspace); `getDb("zoho")` reaches the other one explicitly. The active one is stored in `.data/workspace.json`.
+- Two workspaces, `demo` and `zoho`, each its own JSON file (`.data/db.json`, `.data/zoho.json`). Always go through `getDb()` (it returns the caller's workspace); `getDb("zoho")` reaches the other one explicitly. Each person picks their own dataset (cookie `bolpay_dataset`, set by `POST /api/workspace`); `respond()` / `withRequestWorkspace()` in `http.ts` run each request against it. Outside a signed-in request (worker page, PayPal webhook) it is `demo`; the webhook searches every dataset.
 - Use `getToday()` and `getPeriod()` from `app/lib/server/context.ts`, never constants: the demo dataset is pinned to fixed dates, the Zoho dataset uses the real date and month.
 - `app/lib/zoho/`: `mapper.ts` (pure, dependency-free, checked by `node scripts/zoho-mapper-check.mjs`), `client.ts` (OAuth, token store `.data/integrations.json`, API calls), `sync.ts` (writes the Zoho workspace). Routes: `/api/zoho/{status,connect,callback,sync}` and `/api/workspace`, all owner-only. UI: `/integrations` and the sidebar `WorkspaceSwitch`.
 - A sync updates Zoho-owned fields (identity, attendance) and never overwrites `dailyWage` or `payoutEmail`.
